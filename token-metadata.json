@@ -1,0 +1,30 @@
+{
+  "name": "CLAW",
+  "symbol": "CLAW",
+  "description": "The native token of CLAWMART — decentralized agent skill marketplace. Trust through usage, not gatekeepers.",
+  "image": "https://clawmart.co/logo.png",
+  "external_url": "https://clawmart.co",
+  "attributes": [
+    {
+      "trait_type": "Category",
+      "value": "Utility"
+    },
+    {
+      "trait_type": "Platform",
+      "value": "Solana"
+    },
+    {
+      "trait_type": "Launch Type",
+      "value": "Fair Launch"
+    }
+  ],
+  "properties": {
+    "files": [
+      {
+        "uri": "https://clawmart.co/logo.png",
+        "type": "image/png"
+      }
+    ],
+    "category": "image"
+  }
+}

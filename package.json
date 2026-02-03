@@ -1,0 +1,15 @@
+{
+  "name": "clawmart",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node api/server.js",
+    "start": "node api/server.js",
+    "test": "node tests/integration.test.js && cd api && npm test"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "express-rate-limit": "^7.1.0"
+  }
+}

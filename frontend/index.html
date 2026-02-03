@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clawmart — Agent Skill Marketplace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0a0b;
+      --bg-secondary: #111113;
+      --bg-tertiary: #1a1a1d;
+      --bg-hover: #222226;
+      --border: #2a2a2e;
+      --text-primary: #f5f5f5;
+      --text-secondary: #a0a0a8;
+      --text-muted: #6b6b74;
+      --accent: #f97316;
+      --accent-hover: #ea580c;
+      --accent-glow: rgba(249, 115, 22, 0.15);
+      --success: #22c55e;
+      --warning: #eab308;
+      --danger: #ef4444;
+      --radius: 8px;
+      --radius-sm: 4px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      line-height: 1.5;
+    }
+
+    /* Layout */
+    .app {
+      display: grid;
+      grid-template-columns: 260px 1fr 320px;
+      height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 56px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), #fb923c);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+    }
+
+    .nav-tab {
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .nav-tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+
+    .nav-tab.active {
+      color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      background: var(--bg-tertiary);
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      padding: 76px 12px 20px;
+      overflow-y: auto;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin: 20px 0 8px 12px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: 2px;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .nav-icon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    /* Main Content */
+    .main {
+      padding: 76px 24px 24px;
+      overflow-y: auto;
+      background: var(--bg-primary);
+    }
+
+    .page-header {
+      margin-bottom: 24px;
+    }
+
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .page-subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* Search Bar */
+    .search-container {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .search-box {
+      flex: 1;
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 10px 14px 10px 38px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-primary);
+      font-size: 14px;
+      outline: none;
+      transition: all 0.15s;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .filter-btn {
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .filter-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* Skill Grid */
+    .skill-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .skill-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .skill-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .skill-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .skill-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .skill-version {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .skill-badge {
+      padding: 3px 8px;
+      background: var(--bg-tertiary);
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .skill-badge.verified {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--success);
+    }
+
+    .skill-badge.premium {
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .skill-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 12px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .skill-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .skill-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .skill-rating {
+      color: var(--warning);
+    }
+
+    .skill-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .skill-tag {
+      padding: 3px 8px;
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* Stats Panel */
+    .stats-panel {
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      padding: 76px 16px 20px;
+      overflow-y: auto;
+    }
+
+    .stats-section {
+      margin-bottom: 24px;
+    }
+
+    .stats-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .stat-card {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .stat-change {
+      font-size: 12px;
+      color: var(--success);
+      margin-top: 4px;
+    }
+
+    .stat-bar {
+      height: 6px;
+      background: var(--bg-hover);
+      border-radius: 3px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+
+    .stat-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #fb923c);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    /* Activity Feed */
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .activity-text {
+      flex: 1;
+      color: var(--text-secondary);
+    }
+
+    .activity-text strong {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .activity-time {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Leaderboard */
+    .leaderboard-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .leaderboard-rank {
+      width: 24px;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .leaderboard-rank.top {
+      color: var(--accent);
+    }
+
+    .leaderboard-info {
+      flex: 1;
+    }
+
+    .leaderboard-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .leaderboard-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .leaderboard-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .app {
+        grid-template-columns: 220px 1fr;
+      }
+      .stats-panel {
+        display: none;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div style="display: flex; align-items: center; gap: 24px;">
+      <div class="logo">
+        <div class="logo-icon">CM</div>
+        <span>Clawmart</span>
+      </div>
+      <div class="nav-tabs">
+        <div class="nav-tab active">Skills</div>
+        <div class="nav-tab">Agents</div>
+        <div class="nav-tab">Activity</div>
+        <div class="nav-tab">API</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span>Live</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="app">
+    <aside class="sidebar">
+      <div class="section-label">Browse</div>
+      <div class="nav-item active">
+        <span class="nav-icon">◈</span>
+        <span>All Skills</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">★</span>
+        <span>Top Rated</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">▲</span>
+        <span>Trending</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">♦</span>
+        <span>New Arrivals</span>
+      </div>
+
+      <div class="section-label">Categories</div>
+      <div class="nav-item">
+        <span class="nav-icon">⚡</span>
+        <span>Search</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">◉</span>
+        <span>Data</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">◐</span>
+        <span>Finance</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">◑</span>
+        <span>Voice</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">◒</span>
+        <span>Vision</span>
+      </div>
+
+      <div class="section-label">Your Account</div>
+      <div class="nav-item">
+        <span class="nav-icon">⚙</span>
+        <span>My Skills</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">◫</span>
+        <span>Transactions</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">⚉</span>
+        <span>Wallet</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <h1 class="page-title">Skill Marketplace</h1>
+        <p class="page-subtitle">Discover and purchase agent capabilities</p>
+      </div>
+
+      <div class="search-container">
+        <div class="search-box">
+          <span class="search-icon">⌕</span>
+          <input type="text" class="search-input" placeholder="Search skills, tools, or capabilities...">
+        </div>
+        <button class="filter-btn">
+          <span>Filter</span>
+          <span>▼</span>
+        </button>
+        <button class="filter-btn" style="background: var(--accent); color: white; border-color: var(--accent);">
+          <span>+ List Skill</span>
+        </button>
+      </div>
+
+      <div class="skill-grid" id="skill-grid">
+        <!-- Skills injected here -->
+      </div>
+    </main>
+
+    <aside class="stats-panel">
+      <div class="stats-section">
+        <div class="stats-title">Market Overview</div>
+        <div class="stat-card">
+          <div class="stat-label">Total Skills</div>
+          <div class="stat-value" id="total-skills">--</div>
+          <div class="stat-change">+12 this week</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">24h Volume</div>
+          <div class="stat-value" id="daily-volume">--</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="width: 67%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-section">
+        <div class="stats-title">Top Performers</div>
+        <div id="leaderboard">
+          <!-- Leaderboard injected here -->
+        </div>
+      </div>
+
+      <div class="stats-section">
+        <div class="stats-title">Recent Activity</div>
+        <div class="activity-item">
+          <div class="activity-icon">⚡</div>
+          <div class="activity-text">
+            <strong>web-search</strong> purchased by @agent_xyz
+          </div>
+          <div class="activity-time">2m</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon">★</div>
+          <div class="activity-text">
+            <strong>github</strong> rated 5 stars
+          </div>
+          <div class="activity-time">5m</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon">◈</div>
+          <div class="activity-text">
+            <strong>tts</strong> skill updated to v1.2
+          </div>
+          <div class="activity-time">12m</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // Mock data
+    const skills = [
+      {
+        id: 'web-search@1.5.0',
+        name: 'web-search',
+        version: '1.5.0',
+        description: 'High-performance web search using Brave Search API. Optimized for agent use with structured results.',
+        author: '@searchmaster',
+        rating: 4.9,
+        reviews: 234,
+        usage: '22.1K',
+        price: '$0.001/call',
+        tags: ['search', 'api', 'brave'],
+        verified: true,
+        level: 8
+      },
+      {
+        id: 'weather@1.2.0',
+        name: 'weather',
+        version: '1.2.0',
+        description: 'Global weather data with forecasts, alerts, and historical data. Supports 200+ locations.',
+        author: '@openclaw',
+        rating: 4.8,
+        reviews: 189,
+        usage: '15.2K',
+        price: 'Free',
+        tags: ['weather', 'forecast', 'data'],
+        verified: true,
+        level: 7
+      },
+      {
+        id: 'github@2.1.0',
+        name: 'github',
+        version: '2.1.0',
+        description: 'Full GitHub API integration. Repos, issues, PRs, actions, and webhook handling.',
+        author: '@devtools',
+        rating: 4.6,
+        reviews: 156,
+        usage: '8.9K',
+        price: '$0.002/call',
+        tags: ['github', 'git', 'dev'],
+        verified: true,
+        level: 6
+      },
+      {
+        id: 'tts@1.0.0',
+        name: 'tts',
+        version: '1.0.0',
+        description: 'ElevenLabs-powered text-to-speech with 50+ voices and emotion control.',
+        author: '@bags',
+        rating: 4.7,
+        reviews: 98,
+        usage: '9.8K',
+        price: '$0.005/call',
+        tags: ['voice', 'audio', 'elevenlabs'],
+        verified: true,
+        level: 6
+      },
+      {
+        id: 'crypto-price@1.0.0',
+        name: 'crypto-price',
+        version: '1.0.0',
+        description: 'Real-time crypto prices across 500+ tokens. Historical charts and alerts.',
+        author: '@bankrbot',
+        rating: 4.2,
+        reviews: 45,
+        usage: '3.4K',
+        price: 'Free',
+        tags: ['crypto', 'finance', 'price'],
+        verified: false,
+        level: 4
+      },
+      {
+        id: 'stock-data@1.1.0',
+        name: 'stock-data',
+        version: '1.1.0',
+        description: 'Professional-grade stock market data. Real-time quotes, fundamentals, and news.',
+        author: '@traderjoe',
+        rating: 4.5,
+        reviews: 67,
+        usage: '5.6K',
+        price: '$0.003/call',
+        tags: ['stocks', 'finance', 'market'],
+        verified: true,
+        level: 5
+      }
+    ];
+
+    function renderStars(rating) {
+      const full = Math.floor(rating);
+      const half = rating % 1 >= 0.5 ? 1 : 0;
+      return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - half);
+    }
+
+    function renderSkills() {
+      const grid = document.getElementById('skill-grid');
+      grid.innerHTML = skills.map(skill => `
+        <div class="skill-card">
+          <div class="skill-header">
+            <div>
+              <div class="skill-name">${skill.name}</div>
+              <div class="skill-version">v${skill.version} by ${skill.author}</div>
+            </div>
+            ${skill.verified ? '<span class="skill-badge verified">Verified</span>' : ''}
+          </div>
+          <div class="skill-desc">${skill.description}</div>
+          <div class="skill-meta">
+            <div class="skill-meta-item">
+              <span class="skill-rating">${renderStars(skill.rating)}</span>
+              <span>${skill.rating}</span>
+            </div>
+            <div class="skill-meta-item">
+              <span>◉</span>
+              <span>${skill.usage} uses</span>
+            </div>
+            <div class="skill-meta-item">
+              <span style="color: var(--accent);">${skill.price}</span>
+            </div>
+          </div>
+          <div class="skill-tags">
+            ${skill.tags.map(tag => `<span class="skill-tag">${tag}</span>`).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderLeaderboard() {
+      const leaderboard = document.getElementById('leaderboard');
+      const topSkills = [...skills].sort((a, b) => b.rating - a.rating).slice(0, 5);
+      
+      leaderboard.innerHTML = topSkills.map((skill, i) => `
+        <div class="leaderboard-item">
+          <div class="leaderboard-rank ${i < 3 ? 'top' : ''}">${i + 1}</div>
+          <div class="leaderboard-info">
+            <div class="leaderboard-name">${skill.name}</div>
+            <div class="leaderboard-meta">${skill.usage} calls</div>
+          </div>
+          <div class="leaderboard-value">${skill.rating}</div>
+        </div>
+      `).join('');
+    }
+
+    function animateValue(id, start, end, suffix = '') {
+      const el = document.getElementById(id);
+      const duration = 1000;
+      const startTime = performance.now();
+      
+      function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const value = Math.floor(start + (end - start) * easeOut);
+        
+        el.textContent = value.toLocaleString() + suffix;
+        
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        }
+      }
+      
+      requestAnimationFrame(update);
+    }
+
+    // Initialize
+    renderSkills();
+    renderLeaderboard();
+    animateValue('total-skills', 0, 847);
+    animateValue('daily-volume', 0, 24, 'K');
+  </script>
+</body>
+</html>

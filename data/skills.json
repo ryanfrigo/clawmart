@@ -1,0 +1,169 @@
+{
+  "meta": {
+    "scrapedAt": "2026-02-03T01:21:41.682Z",
+    "count": 6,
+    "sources": [
+      "clawdhub",
+      "bankrbot",
+      "bagsfm"
+    ]
+  },
+  "skills": [
+    {
+      "id": "web-search@1.5.0",
+      "name": "web-search",
+      "version": "1.5.0",
+      "author": "@searchmaster",
+      "tags": [
+        "search",
+        "web",
+        "brave",
+        "api"
+      ],
+      "tools": [
+        "search",
+        "fetch"
+      ],
+      "runtime": "node",
+      "description": "Search the web using Brave Search API",
+      "source": "https://clawdhub.com/skills/web-search",
+      "sourceOrigin": "clawdhub",
+      "verified": true,
+      "rating": 4.9,
+      "usage": 22145,
+      "level": 10,
+      "xp": 222440,
+      "lastUpdated": "2026-02-03T01:21:41.681Z"
+    },
+    {
+      "id": "weather@1.2.0",
+      "name": "weather",
+      "version": "1.2.0",
+      "author": "@openclaw",
+      "tags": [
+        "weather",
+        "forecast",
+        "utility"
+      ],
+      "tools": [
+        "getCurrent",
+        "getForecast"
+      ],
+      "runtime": "node",
+      "description": "Get weather information for any location",
+      "source": "https://clawdhub.com/skills/weather",
+      "sourceOrigin": "clawdhub",
+      "verified": true,
+      "rating": 4.8,
+      "usage": 15234,
+      "level": 9,
+      "xp": 153320,
+      "lastUpdated": "2026-02-03T01:21:41.680Z"
+    },
+    {
+      "id": "tts@1.0.0",
+      "name": "tts",
+      "version": "1.0.0",
+      "author": "@bags",
+      "tags": [
+        "voice",
+        "tts",
+        "audio",
+        "elevenlabs"
+      ],
+      "tools": [
+        "speak",
+        "listVoices"
+      ],
+      "runtime": "node",
+      "description": "Text-to-speech using ElevenLabs API",
+      "source": "https://bags.fm/skill.md",
+      "sourceOrigin": "bagsfm",
+      "verified": true,
+      "rating": 4.7,
+      "usage": 9876,
+      "level": 7,
+      "xp": 99730,
+      "lastUpdated": "2026-02-03T01:21:41.681Z"
+    },
+    {
+      "id": "github@2.1.0",
+      "name": "github",
+      "version": "2.1.0",
+      "author": "@devtools",
+      "tags": [
+        "github",
+        "git",
+        "api",
+        "developer"
+      ],
+      "tools": [
+        "getRepo",
+        "createIssue",
+        "listPRs"
+      ],
+      "runtime": "node",
+      "description": "Interact with GitHub repositories and issues",
+      "source": "https://clawdhub.com/skills/github",
+      "sourceOrigin": "clawdhub",
+      "verified": true,
+      "rating": 4.6,
+      "usage": 8932,
+      "level": 7,
+      "xp": 90280,
+      "lastUpdated": "2026-02-03T01:21:41.681Z"
+    },
+    {
+      "id": "stock-data@1.1.0",
+      "name": "stock-data",
+      "version": "1.1.0",
+      "author": "@traderjoe",
+      "tags": [
+        "stocks",
+        "finance",
+        "market",
+        "api"
+      ],
+      "tools": [
+        "getQuote",
+        "getChart"
+      ],
+      "runtime": "node",
+      "description": "Real-time stock market data and charts",
+      "source": "https://github.com/BankrBot/openclaw-skills/stock-data",
+      "sourceOrigin": "bankrbot",
+      "verified": true,
+      "rating": 4.5,
+      "usage": 5678,
+      "level": 7,
+      "xp": 57730,
+      "lastUpdated": "2026-02-03T01:21:41.681Z"
+    },
+    {
+      "id": "crypto-price@1.0.0",
+      "name": "crypto-price",
+      "version": "1.0.0",
+      "author": "@bankrbot",
+      "tags": [
+        "crypto",
+        "bitcoin",
+        "price",
+        "finance"
+      ],
+      "tools": [
+        "getPrice",
+        "getHistory"
+      ],
+      "runtime": "node",
+      "description": "Get cryptocurrency prices and historical data",
+      "source": "https://github.com/BankrBot/openclaw-skills/crypto-price",
+      "sourceOrigin": "bankrbot",
+      "verified": false,
+      "rating": 4.2,
+      "usage": 3421,
+      "level": 6,
+      "xp": 34630,
+      "lastUpdated": "2026-02-03T01:21:41.681Z"
+    }
+  ]
+}
