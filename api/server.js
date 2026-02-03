@@ -10,14 +10,6 @@ const { ConvexClient } = require('convex/browser');
 const CONVEX_URL = process.env.CONVEX_URL || 'https://hip-curlew-619.convex.cloud';
 const convex = new ConvexClient(CONVEX_URL);
 
-// x402 middleware
-const X402PaymentMiddleware = require('./middleware/x402');
-const paymentMiddleware = new X402PaymentMiddleware({
-  receiverAddress: process.env.RECEIVER_ADDRESS || '0x1234567890123456789012345678901234567890',
-  supportedTokens: ['USDC', 'USDT'],
-  defaultChain: 'base'
-});
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -29,38 +21,82 @@ app.use(express.json());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: { error: 'Rate limit exceeded. Try again later.' }
+  message: { error: 'Rate limit exceeded' }
 });
 app.use('/api/', limiter);
 
-// === HEALTH CHECK ===
+// === HEALTH ===
 app.get('/api/health', async (req, res) => {
   try {
-    // Test convex connection
-    const skills = await convex.query('skills:list', { limit: 1 });
+    await convex.query('skills:list', { limit: 1 });
     res.json({
       status: 'operational',
       service: 'clawmart-api',
-      version: '2.0.0',
+      version: '3.0.0',
       database: 'connected',
-      x402: 'enabled',
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    res.status(500).json({
-      status: 'degraded',
-      error: err.message,
-      timestamp: new Date().toISOString()
-    });
+    res.status(500).json({ status: 'error', error: err.message });
   }
 });
 
-// === SKILLS API ===
+// === AGENT ONBOARDING ===
+
+// Register new agent
+app.post('/api/v1/agents/register', async (req, res) => {
+  try {
+    const { address, name, bio } = req.body;
+    
+    if (!address) {
+      return res.status(400).json({ error: 'Address is required' });
+    }
+    
+    const result = await convex.mutation('agents:register', {
+      address,
+      name,
+      bio,
+    });
+    
+    res.status(201).json({ data: result });
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Get agent profile
+app.get('/api/v1/agents/:address', async (req, res) => {
+  try {
+    const agent = await convex.query('agents:get', { address: req.params.address });
+    
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+    
+    res.json({ data: agent });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List agents
+app.get('/api/v1/agents', async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const agents = await convex.query('agents:list', { limit: parseInt(limit) });
+    res.json({ data: agents });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// === SKILLS ===
 
 // List all skills
 app.get('/api/v1/skills', async (req, res) => {
   try {
-    const { tag, author, verified, minLevel, search, page = 1, limit = 20 } = req.query;
+    const { tag, author, verified, minLevel, search, limit = 20 } = req.query;
     
     const result = await convex.query('skills:list', {
       tag,
@@ -73,12 +109,7 @@ app.get('/api/v1/skills', async (req, res) => {
     
     res.json({
       data: result.skills,
-      meta: {
-        total: result.total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(result.total / parseInt(limit))
-      }
+      meta: { total: result.total, limit: parseInt(limit) }
     });
   } catch (err) {
     console.error('Error listing skills:', err);
@@ -95,15 +126,80 @@ app.get('/api/v1/skills/:id', async (req, res) => {
       return res.status(404).json({ error: 'Skill not found' });
     }
     
-    // Get reputation
-    const reputation = await convex.query('reviews:reputation', { skillId: req.params.id });
+    res.json({ data: skill });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CREATE SKILL - Platform core functionality
+app.post('/api/v1/skills', async (req, res) => {
+  try {
+    const {
+      id, name, version, description,
+      tags, tools, runtime, source,
+      price, priceAmount
+    } = req.body;
     
-    res.json({
-      data: { ...skill, reputation }
+    // Validation
+    if (!id || !name || !version || !description) {
+      return res.status(400).json({ 
+        error: 'Required: id, name, version, description' 
+      });
+    }
+    
+    if (!id.includes('@')) {
+      return res.status(400).json({ 
+        error: 'ID must be in format: name@version' 
+      });
+    }
+    
+    const result = await convex.mutation('skills:create', {
+      id,
+      name,
+      version,
+      description,
+      tags: tags || [],
+      tools: tools || [],
+      runtime: runtime || 'node',
+      source: source || '',
+      price: price || 'Free',
+      priceAmount: priceAmount || 0,
+    });
+    
+    res.status(201).json({ 
+      data: { 
+        id: result.skillId,
+        message: 'Skill created successfully. You can now receive payments!'
+      } 
     });
   } catch (err) {
-    console.error('Error getting skill:', err);
-    res.status(500).json({ error: 'Failed to fetch skill' });
+    console.error('Create skill error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Update skill
+app.patch('/api/v1/skills/:id', async (req, res) => {
+  try {
+    const result = await convex.mutation('skills:update', {
+      id: req.params.id,
+      ...req.body,
+    });
+    
+    res.json({ data: result });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Delete skill
+app.delete('/api/v1/skills/:id', async (req, res) => {
+  try {
+    await convex.mutation('skills:deleteSkill', { id: req.params.id });
+    res.json({ data: { deleted: true } });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 
@@ -116,128 +212,43 @@ app.get('/api/v1/search', async (req, res) => {
     }
     
     const skills = await convex.query('skills:search', { query: q });
-    
-    res.json({
-      query: q,
-      count: skills.length,
-      data: skills
-    });
+    res.json({ query: q, count: skills.length, data: skills });
   } catch (err) {
-    console.error('Error searching:', err);
-    res.status(500).json({ error: 'Search failed' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// === PAYMENT PROTECTED EXECUTION ===
+// === REVIEWS ===
 
-app.post('/api/v1/skills/:id/execute',
-  paymentMiddleware.optionalPayment(0.001),
-  async (req, res) => {
-    try {
-      const skill = await convex.query('skills:get', { id: req.params.id });
-      
-      if (!skill) {
-        return res.status(404).json({ error: 'Skill not found' });
-      }
-      
-      // Check if payment required
-      const price = skill.priceAmount || 0;
-      
-      if (price > 0 && !req.isPaid && !req.payment) {
-        const requirements = paymentMiddleware.generatePaymentRequirements(price);
-        return res.status(402).json({
-          error: 'Payment Required',
-          message: `This skill requires ${skill.price}`,
-          x402: requirements
-        });
-      }
-      
-      // Record payment if provided
-      if (req.payment) {
-        await convex.mutation('payments:record', {
-          nonce: req.payment.nonce,
-          skillId: req.params.id,
-          payer: req.payment.payer,
-          amount: req.payment.amount,
-          token: 'USDC',
-          txHash: req.payment.txHash,
-        });
-      }
-      
-      // Return skill configuration for execution
-      res.json({
-        success: true,
-        skill: {
-          name: skill.name,
-          tools: skill.tools,
-          runtime: skill.runtime,
-          source: skill.source,
-        },
-        paid: req.isPaid || !!req.payment,
-        execution: {
-          endpoint: skill.source,
-          timestamp: new Date().toISOString(),
-        }
-      });
-    } catch (err) {
-      console.error('Error executing skill:', err);
-      res.status(500).json({ error: 'Execution failed' });
-    }
-  }
-);
-
-// === REVIEWS API ===
-
-// Get reviews for a skill
 app.get('/api/v1/skills/:id/reviews', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
-    
     const reviews = await convex.query('reviews:list', {
       skillId: req.params.id,
       limit: parseInt(limit)
     });
-    
     res.json(reviews);
   } catch (err) {
-    console.error('Error getting reviews:', err);
-    res.status(500).json({ error: 'Failed to fetch reviews' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Submit a review
 app.post('/api/v1/skills/:id/reviews', async (req, res) => {
   try {
     const { rating, comment, paymentProof } = req.body;
     const reviewerId = req.headers['x-agent-id'] || 'anonymous';
-    
-    if (!paymentProof) {
-      return res.status(400).json({ error: 'Payment proof required to review' });
-    }
     
     const reviewId = await convex.mutation('reviews:submit', {
       skillId: req.params.id,
       reviewerId,
       rating,
       comment,
-      paymentProof: typeof paymentProof === 'string' ? paymentProof : JSON.stringify(paymentProof),
+      paymentProof: JSON.stringify(paymentProof || {}),
     });
     
     res.status(201).json({ data: { id: reviewId } });
   } catch (err) {
-    console.error('Error submitting review:', err);
-    res.status(400).json({ error: err.message || 'Failed to submit review' });
-  }
-});
-
-// Get reputation
-app.get('/api/v1/skills/:id/reputation', async (req, res) => {
-  try {
-    const reputation = await convex.query('reviews:reputation', { skillId: req.params.id });
-    res.json({ data: reputation });
-  } catch (err) {
-    console.error('Error getting reputation:', err);
-    res.status(500).json({ error: 'Failed to fetch reputation' });
+    res.status(400).json({ error: err.message });
   }
 });
 
@@ -245,42 +256,11 @@ app.get('/api/v1/skills/:id/reputation', async (req, res) => {
 
 app.get('/api/v1/leaderboard', async (req, res) => {
   try {
-    const { type = 'overall' } = req.query;
-    
-    let data;
-    if (type === 'top_rated') {
-      data = await convex.query('reviews:topRated', { limit: 10 });
-    } else {
-      data = await convex.query('skills:leaderboard', { type });
-    }
-    
+    const { type = 'top_rated' } = req.query;
+    const data = await convex.query('skills:leaderboard', { type });
     res.json({ type, data });
   } catch (err) {
-    console.error('Error getting leaderboard:', err);
-    res.status(500).json({ error: 'Failed to fetch leaderboard' });
-  }
-});
-
-// === TAGS ===
-
-app.get('/api/v1/tags', async (req, res) => {
-  try {
-    const skills = await convex.query('skills:list', { limit: 1000 });
-    const tags = new Set();
-    skills.skills.forEach(s => s.tags.forEach(tag => tags.add(tag)));
-    
-    const tagCounts = {};
-    for (const tag of tags) {
-      tagCounts[tag] = skills.skills.filter(s => s.tags.includes(tag)).length;
-    }
-    
-    res.json({
-      tags: Array.from(tags).sort(),
-      counts: tagCounts
-    });
-  } catch (err) {
-    console.error('Error getting tags:', err);
-    res.status(500).json({ error: 'Failed to fetch tags' });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -292,29 +272,18 @@ app.get('/api/v1/activity', async (req, res) => {
     const activity = await convex.query('payments:activity', { limit: parseInt(limit) });
     res.json({ data: activity });
   } catch (err) {
-    console.error('Error getting activity:', err);
-    res.status(500).json({ error: 'Failed to fetch activity' });
-  }
-});
-
-// === SKILL SPEC ===
-
-app.get('/skill.md', async (req, res) => {
-  try {
-    const fs = require('fs').promises;
-    const manifestPath = path.join(__dirname, '..', 'SKILL_SPEC.md');
-    const content = await fs.readFile(manifestPath, 'utf8');
-    res.type('text/markdown');
-    res.send(content);
-  } catch (err) {
-    res.status(404).send('# SKILL.md not found');
+    res.status(500).json({ error: err.message });
   }
 });
 
 // === SWAGGER ===
 
-const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml'));
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+try {
+  const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml'));
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+} catch (err) {
+  console.log('Swagger docs not available');
+}
 
 // === ERROR HANDLING ===
 
@@ -328,10 +297,10 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Clawmart API v2.0.0 running on port ${PORT}`);
-  console.log(`💾 Convex: ${CONVEX_URL}`);
-  console.log(`💰 x402 payments: enabled`);
-  console.log(`⭐ Reviews: enabled`);
+  console.log(`🚀 Clawmart API v3.0.0 running on port ${PORT}`);
+  console.log(`💾 Database: ${CONVEX_URL}`);
+  console.log(`📝 User onboarding: POST /api/v1/agents/register`);
+  console.log(`➕ Add skill: POST /api/v1/skills`);
   console.log(`📚 API Docs: http://localhost:${PORT}/api/docs`);
 });
 

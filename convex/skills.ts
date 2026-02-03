@@ -1,8 +1,8 @@
-// convex/skills.ts - Convex functions for skills
+// convex/skills.ts - Updated for user-created skills
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
-// Get all skills with optional filtering
+// List skills with filters
 export const list = query({
   args: {
     tag: v.optional(v.string()),
@@ -11,66 +11,46 @@ export const list = query({
     minLevel: v.optional(v.number()),
     search: v.optional(v.string()),
     limit: v.optional(v.number()),
-    cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     let skills = await ctx.db.query("skills").collect();
     
-    // Apply filters
-    if (args.tag) {
-      skills = skills.filter(s => s.tags.includes(args.tag));
-    }
-    if (args.author) {
-      skills = skills.filter(s => s.author === args.author);
-    }
-    if (args.verified !== undefined) {
-      skills = skills.filter(s => s.verified === args.verified);
-    }
-    if (args.minLevel) {
-      skills = skills.filter(s => s.level >= args.minLevel);
-    }
+    if (args.tag) skills = skills.filter(s => s.tags.includes(args.tag));
+    if (args.author) skills = skills.filter(s => s.author === args.author);
+    if (args.verified !== undefined) skills = skills.filter(s => s.verified === args.verified);
+    if (args.minLevel) skills = skills.filter(s => s.level >= args.minLevel);
     if (args.search) {
-      const query = args.search.toLowerCase();
+      const q = args.search.toLowerCase();
       skills = skills.filter(s => 
-        s.name.toLowerCase().includes(query) ||
-        s.description.toLowerCase().includes(query) ||
-        s.tags.some(t => t.toLowerCase().includes(query))
+        s.name.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q)
       );
     }
     
-    // Sort by level desc, then rating desc
-    skills.sort((a, b) => {
-      if (b.level !== a.level) return b.level - a.level;
-      return b.rating - a.rating;
-    });
-    
-    const limit = args.limit || 20;
-    const paginated = skills.slice(0, limit);
+    skills.sort((a, b) => (b.level - a.level) || (b.rating - a.rating));
     
     return {
-      skills: paginated,
+      skills: skills.slice(0, args.limit || 20),
       total: skills.length,
     };
   },
 });
 
-// Get single skill by ID
+// Get single skill
 export const get = query({
   args: { id: v.string() },
   handler: async (ctx, args) => {
     const skill = await ctx.db.query("skills")
-      .withIndex("by_name", q => q.eq("name", args.id.split('@')[0]))
       .filter(q => q.eq(q.field("id"), args.id))
       .first();
     
     if (!skill) return null;
     
-    // Get reviews
     const reviews = await ctx.db.query("reviews")
       .withIndex("by_skill", q => q.eq("skillId", args.id))
       .collect();
     
-    const avgRating = reviews.length > 0 
+    const avgRating = reviews.length 
       ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
       : 0;
     
@@ -82,54 +62,107 @@ export const get = query({
   },
 });
 
-// Insert or update a skill (called by scraper)
-export const upsert = mutation({
+// CREATE SKILL - This is what users do to add their skill
+export const create = mutation({
   args: {
-    id: v.string(),
+    id: v.string(), // name@version
     name: v.string(),
     version: v.string(),
-    author: v.string(),
     description: v.string(),
     tags: v.array(v.string()),
     tools: v.array(v.string()),
     runtime: v.string(),
-    source: v.string(),
-    sourceOrigin: v.string(),
-    verified: v.boolean(),
-    rating: v.number(),
-    usage: v.number(),
-    level: v.number(),
-    xp: v.number(),
+    source: v.string(), // URL to skill endpoint
     price: v.optional(v.string()),
-    lastUpdated: v.string(),
+    priceAmount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Get author from auth context (simplified - would verify signature)
+    const author = args.id.split('@')[0]; // Simplified
+    
+    // Check if skill ID already exists
     const existing = await ctx.db.query("skills")
       .filter(q => q.eq(q.field("id"), args.id))
       .first();
     
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        ...args,
-        scrapedAt: Date.now(),
-      });
-      return { updated: true, id: existing._id };
-    } else {
-      const id = await ctx.db.insert("skills", {
-        ...args,
-        scrapedAt: Date.now(),
-      });
-      
-      // Log activity
-      await ctx.db.insert("activity", {
-        type: "skill_listed",
-        actor: args.author,
-        skillId: args.id,
-        timestamp: Date.now(),
-      });
-      
-      return { created: true, id };
+      throw new Error("Skill with this ID already exists");
     }
+    
+    // Calculate initial level based on completeness
+    let level = 1;
+    if (args.description.length > 100) level += 1;
+    if (args.tools.length >= 2) level += 1;
+    if (args.tags.length >= 3) level += 1;
+    
+    const skillId = await ctx.db.insert("skills", {
+      ...args,
+      author: `@${author}`,
+      sourceOrigin: "clawmart",
+      verified: false,
+      rating: 0,
+      usage: 0,
+      level,
+      xp: level * 100,
+      lastUpdated: new Date().toISOString(),
+      scrapedAt: Date.now(),
+    });
+    
+    // Update agent's skillsListed
+    const agent = await ctx.db.query("agents")
+      .filter(q => q.eq(q.field("address"), author))
+      .first();
+    
+    if (agent) {
+      await ctx.db.patch(agent._id, {
+        skillsListed: [...agent.skillsListed, args.id],
+      });
+    }
+    
+    // Log activity
+    await ctx.db.insert("activity", {
+      type: "skill_created",
+      actor: author,
+      skillId: args.id,
+      timestamp: Date.now(),
+    });
+    
+    return { id: skillId, skillId: args.id };
+  },
+});
+
+// Update skill
+export const update = mutation({
+  args: {
+    id: v.string(),
+    description: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    tools: v.optional(v.array(v.string())),
+    price: v.optional(v.string()),
+    priceAmount: v.optional(v.number()),
+    source: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const skill = await ctx.db.query("skills")
+      .filter(q => q.eq(q.field("id"), args.id))
+      .first();
+    
+    if (!skill) throw new Error("Skill not found");
+    
+    const updates: any = {
+      lastUpdated: new Date().toISOString(),
+    };
+    
+    if (args.description) updates.description = args.description;
+    if (args.tags) updates.tags = args.tags;
+    if (args.tools) updates.tools = args.tools;
+    if (args.price) updates.price = args.price;
+    if (args.priceAmount !== undefined) updates.priceAmount = args.priceAmount;
+    if (args.source) updates.source = args.source;
+    
+    await ctx.db.patch(skill._id, updates);
+    
+    return { success: true };
   },
 });
 
@@ -166,14 +199,28 @@ export const leaderboard = query({
           .sort((a, b) => b.usage - a.usage)
           .slice(0, 10);
       
-      case 'rising':
+      case 'newest':
         return skills
-          .filter(s => s.level >= 4 && !s.verified)
-          .sort((a, b) => b.xp - a.xp)
+          .sort((a, b) => b.scrapedAt - a.scrapedAt)
           .slice(0, 10);
       
       default:
         return skills.slice(0, 10);
     }
+  },
+});
+
+// Delete skill
+export const deleteSkill = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    const skill = await ctx.db.query("skills")
+      .filter(q => q.eq(q.field("id"), args.id))
+      .first();
+    
+    if (!skill) throw new Error("Skill not found");
+    
+    await ctx.db.delete(skill._id);
+    return { success: true };
   },
 });

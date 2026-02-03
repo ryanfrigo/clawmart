@@ -56,11 +56,14 @@ export default defineSchema({
   agents: defineTable({
     address: v.string(),
     name: v.optional(v.string()),
+    bio: v.optional(v.string()),
     reputation: v.number(),
     skillsListed: v.array(v.string()),
     totalEarned: v.number(),
     totalSpent: v.number(),
     createdAt: v.number(),
+    apiKey: v.optional(v.string()),
+    apiKeyCreatedAt: v.optional(v.number()),
   })
     .index("by_address", ["address"]),
 
