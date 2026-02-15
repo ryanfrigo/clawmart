@@ -1,20 +1,23 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import type { NextFetchEvent } from "next/server";
 
 const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
 const isClerkRoute = createRouteMatcher(["/dashboard(.*)", "/sign-in(.*)", "/sign-up(.*)"]);
 
-export default function middleware(req: NextRequest) {
+const clerkHandler = clerkMiddleware(async (auth, req) => {
+  if (isProtectedRoute(req)) {
+    await auth.protect();
+  }
+});
+
+export default function middleware(req: NextRequest, event: NextFetchEvent) {
   // Only run Clerk middleware on routes that need auth
   if (isClerkRoute(req)) {
-    return clerkMiddleware(async (auth, req) => {
-      if (isProtectedRoute(req)) {
-        await auth.protect();
-      }
-    })(req, {} as any);
+    return clerkHandler(req, event);
   }
-  
+
   return NextResponse.next();
 }
 
