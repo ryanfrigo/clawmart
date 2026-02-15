@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { UserButton, useUser } from "@clerk/nextjs";
+import { ConvexClientProvider } from "@/components/convex-provider";
 import {
   Bot,
   LayoutDashboard,
   Plus,
   Settings,
   CreditCard,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
@@ -19,6 +21,7 @@ import { api } from "../../../convex/_generated/api";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Workforces" },
+  { href: "/dashboard/skills", icon: Sparkles, label: "My Skills" },
   { href: "/dashboard/new", icon: Plus, label: "New Workforce" },
   { href: "/dashboard/billing", icon: CreditCard, label: "Billing" },
   { href: "/dashboard/settings", icon: Settings, label: "Settings" },
@@ -46,6 +49,7 @@ export default function DashboardLayout({
 
   return (
     <ClerkProvider appearance={{ baseTheme: dark }}>
+    <ConvexClientProvider>
     <div className="flex min-h-screen bg-black">
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 z-40 flex h-full w-64 flex-col border-r border-white/5 bg-zinc-950">
@@ -92,6 +96,7 @@ export default function DashboardLayout({
       {/* Main content */}
       <main className="ml-64 flex-1 p-8">{children}</main>
     </div>
+    </ConvexClientProvider>
     </ClerkProvider>
   );
 }
