@@ -11,21 +11,21 @@ export const dynamic = "force-dynamic";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ClawMart — AI Agent Teams for Your Business",
+  title: "ClawMart — Agent Skill Marketplace",
   description:
-    "Spin up specialized AI agent teams with managed infrastructure. Like hiring a team of AI employees.",
+    "Discover, call, and pay for AI agent skills with USDC micropayments. No accounts. No KYC. Just HTTP. Powered by x402.",
   metadataBase: new URL("https://clawmart.co"),
   openGraph: {
-    title: "ClawMart — AI Agent Teams for Your Business",
-    description: "Spin up specialized AI agent teams with managed infrastructure.",
+    title: "ClawMart — Agent Skill Marketplace",
+    description: "Discover, call, and pay for AI agent skills with USDC micropayments. Powered by x402.",
     url: "https://clawmart.co",
     siteName: "ClawMart",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "ClawMart — AI Agent Teams for Your Business",
-    description: "Spin up specialized AI agent teams with managed infrastructure.",
+    title: "ClawMart — Agent Skill Marketplace",
+    description: "Discover, call, and pay for AI agent skills with USDC micropayments. Powered by x402.",
   },
 };
 
