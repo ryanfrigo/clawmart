@@ -53,7 +53,7 @@ export const create = mutation({
     const txnId = await ctx.db.insert("transactions", {
       skillId: args.skillId,
       buyerId: buyer._id,
-      sellerId: skill.authorId,
+      sellerId: skill.authorId!,
       amount: args.amount,
       status: "completed",
       txHash: args.txHash,

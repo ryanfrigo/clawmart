@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { use } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 import {
   ArrowLeft,
   Bot,
@@ -18,7 +19,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { agentSkills } from "@/lib/agents";
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -36,13 +36,31 @@ function StarRating({ rating }: { rating: number }) {
 
 export default function SkillDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const skill = agentSkills.find((s) => s.id === id);
+  const skill = useQuery(api.skills.getBySlug, { slug: id });
   const [copied, setCopied] = useState(false);
   const [trying, setTrying] = useState(false);
   const [tryResult, setTryResult] = useState<string | null>(null);
-  const [inputValue, setInputValue] = useState(skill?.exampleInput || "");
+  const [inputValue, setInputValue] = useState("");
 
-  if (!skill) return notFound();
+  // Update input when skill loads
+  const effectiveInput = inputValue || skill?.exampleInput || "";
+
+  if (skill === undefined) {
+    return (
+      <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-zinc-600" />
+      </div>
+    );
+  }
+
+  if (skill === null) {
+    return (
+      <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center gap-4">
+        <h1 className="text-2xl font-bold">Skill not found</h1>
+        <Link href="/" className="text-indigo-400 hover:underline">← Back to marketplace</Link>
+      </div>
+    );
+  }
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -57,7 +75,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
       const res = await fetch(skill.endpoint, {
         method: skill.method,
         headers: { "Content-Type": "application/json" },
-        body: inputValue,
+        body: effectiveInput,
       });
       if (res.status === 402) {
         const paymentInfo = await res.json();
@@ -86,11 +104,10 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
 
   const curlCommand = `curl -X ${skill.method} https://clawmart.co${skill.endpoint} \\
   -H "Content-Type: application/json" \\
-  -d '${skill.exampleInput}'`;
+  -d '${skill.exampleInput || "{}"}'`;
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-white/20">
-      {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
           <div className="flex items-center gap-4">
@@ -110,7 +127,6 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
       </nav>
 
       <div className="mx-auto max-w-4xl px-6 pt-24 pb-20">
-        {/* Back */}
         <Link href="/#skills" className="inline-flex items-center gap-2 text-[13px] text-zinc-500 hover:text-white transition mb-8">
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to Skills
@@ -126,7 +142,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
               <div>
                 <h1 className="text-2xl font-bold tracking-tight">{skill.name}</h1>
                 <div className="flex items-center gap-3 mt-1">
-                  <span className="text-[12px] text-zinc-500">by {skill.author}</span>
+                  <span className="text-[12px] text-zinc-500">by {skill.authorName}</span>
                   <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] text-zinc-500">
                     {skill.category}
                   </span>
@@ -135,7 +151,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <span className="text-3xl font-bold text-emerald-400">{skill.pricePerCall}</span>
+            <span className="text-3xl font-bold text-emerald-400">${skill.pricePerCall}</span>
             <span className="text-[12px] text-zinc-500">USDC per call</span>
           </div>
         </div>
@@ -143,10 +159,10 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           {[
-            { icon: Star, label: "Rating", value: `${skill.rating}/5`, sub: `${skill.reviews} reviews` },
-            { icon: Activity, label: "Total Calls", value: skill.calls, sub: "all time" },
-            { icon: Clock, label: "Response Time", value: skill.responseTime, sub: "average" },
-            { icon: Zap, label: "Uptime", value: skill.uptime, sub: "30 days" },
+            { icon: Star, label: "Rating", value: skill.averageRating > 0 ? `${skill.averageRating}/5` : "—", sub: `${skill.totalReviews} reviews` },
+            { icon: Activity, label: "Total Calls", value: String(skill.totalCalls), sub: "all time" },
+            { icon: Clock, label: "Response Time", value: skill.responseTime || "—", sub: "average" },
+            { icon: Zap, label: "Status", value: skill.status, sub: "current" },
           ].map((stat) => (
             <div key={stat.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
               <stat.icon className="h-4 w-4 text-zinc-600 mb-2" />
@@ -159,7 +175,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
         {/* Description */}
         <div className="mb-10">
           <h2 className="text-[15px] font-semibold mb-3">About</h2>
-          <p className="text-[14px] leading-relaxed text-zinc-400">{skill.longDescription}</p>
+          <p className="text-[14px] leading-relaxed text-zinc-400">{skill.longDescription || skill.description}</p>
         </div>
 
         {/* Tags */}
@@ -184,7 +200,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
             <div>
               <label className="text-[12px] text-zinc-500 mb-2 block">Request Body</label>
               <textarea
-                value={inputValue}
+                value={effectiveInput}
                 onChange={(e) => setInputValue(e.target.value)}
                 className="w-full rounded-xl border border-white/[0.08] bg-[#09090b] p-4 text-[13px] text-zinc-300 font-mono leading-relaxed resize-none focus:outline-none focus:border-indigo-500/30 min-h-[80px]"
                 rows={3}
@@ -196,7 +212,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
               className="h-9 rounded-lg bg-indigo-500 text-white text-[13px] font-medium hover:bg-indigo-600 disabled:opacity-50"
             >
               {trying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Zap className="h-4 w-4 mr-2" />}
-              {trying ? "Calling..." : `Call Skill — ${skill.pricePerCall} USDC`}
+              {trying ? "Calling..." : `Call Skill — $${skill.pricePerCall} USDC`}
             </Button>
             {tryResult && (
               <div className="relative">
@@ -234,7 +250,7 @@ const res = await x402Fetch(
   "https://clawmart.co${skill.endpoint}",
   {
     method: "${skill.method}",
-    body: JSON.stringify(${skill.exampleInput}),
+    body: JSON.stringify(${skill.exampleInput || "{}"}),
   },
   walletClient
 );`}</pre>
@@ -243,14 +259,16 @@ const res = await x402Fetch(
         </div>
 
         {/* Example response */}
-        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-          <div className="border-b border-white/[0.06] px-6 py-4">
-            <h2 className="text-[15px] font-semibold">Example Response</h2>
+        {skill.exampleOutput && (
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+            <div className="border-b border-white/[0.06] px-6 py-4">
+              <h2 className="text-[15px] font-semibold">Example Response</h2>
+            </div>
+            <pre className="p-6 text-[13px] text-zinc-400 font-mono leading-relaxed overflow-x-auto">
+              {skill.exampleOutput}
+            </pre>
           </div>
-          <pre className="p-6 text-[13px] text-zinc-400 font-mono leading-relaxed overflow-x-auto">
-            {skill.exampleOutput}
-          </pre>
-        </div>
+        )}
 
         {/* Endpoint info */}
         <div className="mt-10 flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
@@ -258,7 +276,7 @@ const res = await x402Fetch(
             <ExternalLink className="h-4 w-4 text-zinc-600" />
             <code className="text-[13px] text-zinc-400">{skill.method} https://clawmart.co{skill.endpoint}</code>
           </div>
-          <div className="text-[13px] text-emerald-400 font-semibold">{skill.pricePerCall}/call</div>
+          <div className="text-[13px] text-emerald-400 font-semibold">${skill.pricePerCall}/call</div>
         </div>
       </div>
     </div>

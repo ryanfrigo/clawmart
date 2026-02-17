@@ -20,6 +20,7 @@ export default defineSchema({
     .index("by_stripe_customer_id", ["stripeCustomerId"]),
 
   skills: defineTable({
+    slug: v.optional(v.string()), // URL-friendly identifier
     name: v.string(),
     description: v.string(),
     longDescription: v.optional(v.string()),
@@ -27,7 +28,7 @@ export default defineSchema({
     endpoint: v.string(),
     method: v.union(v.literal("GET"), v.literal("POST")),
     pricePerCall: v.number(), // in USD, e.g. 0.003
-    authorId: v.id("users"),
+    authorId: v.optional(v.id("users")), // optional for seeded/system skills
     authorName: v.string(),
     tags: v.array(v.string()),
     exampleInput: v.optional(v.string()),
@@ -46,6 +47,7 @@ export default defineSchema({
     .index("by_author", ["authorId"])
     .index("by_category", ["category"])
     .index("by_status", ["status"])
+    .index("by_slug", ["slug"])
     .searchIndex("search_name", { searchField: "name" }),
 
   reviews: defineTable({
