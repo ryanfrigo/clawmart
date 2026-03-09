@@ -1,74 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSkillById } from "@/lib/agents";
+import { calculateRequiredCredits } from "@/lib/stripe";
 
 /**
- * Demo skill endpoint.
- * In production with x402 configured (FACILITATOR_URL + EVM_ADDRESS),
- * this would be wrapped with withX402() for real payment gating.
- *
- * For the MVP, we return a 402 response that demonstrates the protocol
- * flow to callers, showing exactly what x402 would return.
+ * Skill endpoint with payment gating.
+ * For now, returns 402 with credit requirements until user purchases credits.
+ * TODO: Integrate full Convex credit system once dependencies are resolved.
  */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ skillId: string }> }
 ) {
-  const { skillId } = await params;
-  const skill = getSkillById(skillId);
-
-  if (!skill) {
-    return NextResponse.json({ error: "Skill not found" }, { status: 404 });
-  }
-
-  // Check for x402 payment header (would be set by @x402/fetch client)
-  const paymentHeader = request.headers.get("X-PAYMENT");
-
-  if (!paymentHeader) {
-    // Return 402 Payment Required — this is the x402 protocol flow
-    return NextResponse.json(
-      {
-        x402Version: 1,
-        accepts: [
-          {
-            scheme: "exact",
-            network: "eip155:8453", // Base mainnet
-            price: skill.pricePerCall.replace("$", ""),
-            asset: "USDC",
-            payTo: "0x0000000000000000000000000000000000000000", // Placeholder — set real address in production
-          },
-        ],
-        description: skill.description,
-        mimeType: "application/json",
-      },
-      {
-        status: 402,
-        headers: {
-          "X-PAYMENT-REQUIRED": "true",
-        },
-      }
-    );
-  }
-
-  // If payment header exists, simulate successful response
-  // In production, x402 middleware verifies the payment before reaching here
-  let body;
   try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
+    const { skillId } = await params;
+    const skill = getSkillById(skillId);
 
-  // Return example output for demo purposes
-  return NextResponse.json({
-    skill: skill.name,
-    input: body,
-    result: JSON.parse(skill.exampleOutput || "{}"),
-    meta: {
-      latency: skill.responseTime,
-      model: "demo",
-      paid: skill.pricePerCall,
-    },
-  });
+    if (!skill) {
+      return NextResponse.json({ error: "Skill not found" }, { status: 404 });
+    }
+
+    // Check for payment header or credits
+    const paymentHeader = request.headers.get("X-PAYMENT");
+    const authHeader = request.headers.get("Authorization");
+    
+    // Calculate required credits
+    const creditsRequired = calculateRequiredCredits(skillId);
+
+    // For now, require payment header to proceed
+    if (!paymentHeader && !authHeader) {
+      return NextResponse.json(
+        {
+          error: "Payment required",
+          required: creditsRequired,
+          pricePerCall: skill.pricePerCall,
+          purchaseUrl: "/credits",
+          message: `This skill requires ${creditsRequired} credits (${skill.pricePerCall}). Purchase credits at /credits to use this skill.`
+        },
+        { 
+          status: 402,
+          headers: {
+            "X-PAYMENT-REQUIRED": "true",
+          }
+        }
+      );
+    }
+
+    // Parse request body
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
+
+    // Simulate skill execution (since payment was provided)
+    const response = {
+      skill: skill.name,
+      input: body,
+      result: JSON.parse(skill.exampleOutput || "{}"),
+      meta: {
+        latency: skill.responseTime,
+        model: "demo",
+        creditsUsed: creditsRequired,
+        paid: skill.pricePerCall,
+      },
+    };
+
+    return NextResponse.json(response);
+
+  } catch (error) {
+    console.error("Skill execution error:", error)
+    return NextResponse.json({ 
+      error: "Internal server error" 
+    }, { status: 500 });
+  }
 }
 
 export async function GET(

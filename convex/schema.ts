@@ -142,4 +142,27 @@ export default defineSchema({
   })
     .index("by_workforce", ["workforceId"])
     .index("by_agent", ["agentId"]),
+
+  // Credit system for skill payments
+  creditBalances: defineTable({
+    userId: v.id("users"),
+    credits: v.number(),
+    lastUsed: v.optional(v.number()),
+  }).index("by_userId", ["userId"]),
+
+  creditTransactions: defineTable({
+    userId: v.id("users"),
+    type: v.union(v.literal("purchased"), v.literal("spent")),
+    amount: v.number(), // positive for purchases, negative for spending
+    description: v.string(),
+    skillId: v.optional(v.string()),
+    paymentId: v.optional(v.string()),
+    packageId: v.optional(v.string()),
+    metadata: v.optional(v.object({
+      endpoint: v.optional(v.string()),
+      responseTime: v.optional(v.number()),
+      success: v.optional(v.boolean()),
+    })),
+    createdAt: v.number(),
+  }).index("by_userId", ["userId"]),
 });
