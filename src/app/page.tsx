@@ -31,6 +31,7 @@ export default function HomePage() {
               <a href="#skills" className="text-[13px] text-zinc-500 transition hover:text-white">Skills</a>
               <a href="#how-it-works" className="text-[13px] text-zinc-500 transition hover:text-white">How it Works</a>
               <Link href="/docs" className="text-[13px] text-zinc-500 transition hover:text-white">Docs</Link>
+              <Link href="/credits" className="text-[13px] text-zinc-500 transition hover:text-white">Credits</Link>
             </div>
           </div>
           <div className="flex items-center gap-3">
