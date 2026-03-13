@@ -72,19 +72,31 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
     setTrying(true);
     setTryResult(null);
     try {
-      const res = await fetch(skill.endpoint, {
+      // Use /api/skills/<slug> endpoint for demo skills, or skill.endpoint for external skills
+      const isInternalSkill = skill.endpoint.startsWith("/api/skills/");
+      const endpoint = isInternalSkill
+        ? skill.endpoint
+        : skill.endpoint;
+
+      const res = await fetch(endpoint, {
         method: skill.method,
-        headers: { "Content-Type": "application/json" },
-        body: effectiveInput,
+        headers: {
+          "Content-Type": "application/json",
+          // X-Demo: true enables real results without payment in the Try It panel
+          ...(isInternalSkill ? { "X-Demo": "true" } : {}),
+        },
+        body: skill.method !== "GET" ? effectiveInput : undefined,
       });
+
+      const data = await res.json();
+
       if (res.status === 402) {
-        const paymentInfo = await res.json();
         setTryResult(
           JSON.stringify(
             {
               status: 402,
               message: "Payment Required",
-              ...paymentInfo,
+              ...data,
               note: "In production, @x402/fetch handles this automatically with your wallet.",
             },
             null,
@@ -92,7 +104,6 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
           ),
         );
       } else {
-        const data = await res.json();
         setTryResult(JSON.stringify(data, null, 2));
       }
     } catch {

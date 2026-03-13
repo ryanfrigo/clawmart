@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SkillsGrid } from "@/components/skills-grid";
+import { LiveDemo } from "@/components/live-demo";
 
 export default function HomePage() {
   return (
@@ -156,6 +157,20 @@ const result = await x402Fetch(
 const data = await result.json();
 // { overall: "positive", score: 0.95, ... }`}</code></pre>
           </div>
+        </div>
+      </section>
+
+      {/* Live Demo */}
+      <section className="border-t border-white/[0.06] py-28">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="mb-16 text-center">
+            <p className="mb-3 text-[13px] font-medium uppercase tracking-widest text-zinc-500">Try it now</p>
+            <h2 className="text-3xl font-bold tracking-[-0.025em] md:text-[2.5rem]">Live Demo</h2>
+            <p className="mt-4 text-[15px] text-zinc-500">
+              Real AI results. No wallet required. Just HTTP.
+            </p>
+          </div>
+          <LiveDemo />
         </div>
       </section>
 
