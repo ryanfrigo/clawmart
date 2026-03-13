@@ -31,5 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "convex/_generated"]
+  "exclude": ["node_modules", "convex"]
 }
