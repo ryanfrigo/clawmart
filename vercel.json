@@ -1,5 +1,11 @@
 {
   "framework": "nextjs",
   "buildCommand": "next build",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "rewrites": [
+    {
+      "source": "/x402/:path*",
+      "destination": "/api/x402/:path*"
+    }
+  ]
 }
