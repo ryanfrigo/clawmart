@@ -11,6 +11,11 @@ export const metadata: Metadata = {
   description:
     "Discover, call, and pay for AI agent skills with USDC micropayments. No accounts. No KYC. Just HTTP. Powered by x402.",
   metadataBase: new URL("https://clawmart.co"),
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
   openGraph: {
     title: "ClawMart — Agent Skill Marketplace",
     description: "Discover, call, and pay for AI agent skills with USDC micropayments. Powered by x402.",

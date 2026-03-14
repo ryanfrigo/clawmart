@@ -37,6 +37,14 @@ const DEMOS = [
     defaultInput: '{ "url": "https://x402.org" }',
     field: "url",
   },
+  {
+    id: "voicecharm-receptionist",
+    label: "🎙️ AI Receptionist",
+    price: "$0.25",
+    placeholder: "Configure your business...",
+    defaultInput: '{ "business_name": "Ryan\'s HVAC", "business_type": "hvac", "services": ["heating repair", "ac installation", "maintenance"], "service_area": "Oakland, CA" }',
+    field: "business_name",
+  },
 ];
 
 export function LiveDemo() {

@@ -219,6 +219,69 @@ async function runCodeReviewer(body: Record<string, unknown>) {
   };
 }
 
+async function runVoiceCharmReceptionist(body: Record<string, unknown>) {
+  const businessName = String(body.business_name || body.businessName || "");
+  const businessType = String(body.business_type || body.businessType || "general");
+  const services = Array.isArray(body.services) ? body.services : ["general inquiry"];
+
+  if (!businessName) return { error: "Missing 'business_name' field" };
+
+  // Simulate a realistic receptionist call handling
+  const outcomes = ["appointment_booked", "lead_qualified", "info_provided", "callback_scheduled"] as const;
+  const outcome = outcomes[Math.floor(Math.random() * outcomes.length)];
+
+  const firstNames = ["Sarah", "Michael", "Jessica", "David", "Emily", "James", "Maria", "Robert"];
+  const lastNames = ["Johnson", "Williams", "Brown", "Davis", "Miller", "Wilson", "Moore", "Taylor"];
+  const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+  const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+
+  const durationMin = 1 + Math.floor(Math.random() * 6);
+  const durationSec = Math.floor(Math.random() * 60);
+  const selectedService = services[Math.floor(Math.random() * services.length)];
+
+  const now = new Date();
+  const appointmentDate = new Date(now.getTime() + (1 + Math.floor(Math.random() * 5)) * 86400000);
+  const hours = 8 + Math.floor(Math.random() * 9);
+
+  const result: Record<string, unknown> = {
+    call_id: `call_x402_${Date.now().toString(36)}`,
+    status: "handled",
+    duration: `${durationMin}m ${durationSec}s`,
+    outcome,
+    transcript: `[AI Receptionist] Thank you for calling ${businessName}! How can I help you today?\n[Caller] Hi, I need help with ${selectedService}.\n[AI Receptionist] I'd be happy to help with that. Let me get some information...`,
+    customer_info: {
+      name: `${firstName} ${lastName}`,
+      phone: `+1555${String(Math.floor(Math.random() * 9000000 + 1000000))}`,
+      email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@email.com`,
+    },
+    business: {
+      name: businessName,
+      type: businessType,
+      service_requested: selectedService,
+    },
+    follow_up_sent: true,
+    model: "voicecharm-receptionist-v1",
+  };
+
+  if (outcome === "appointment_booked") {
+    result.appointment = {
+      service: String(selectedService),
+      date: appointmentDate.toISOString().split("T")[0],
+      time: `${hours}:00`,
+      notes: `Customer needs ${selectedService}`,
+    };
+  }
+
+  if (outcome === "callback_scheduled") {
+    result.callback = {
+      requested_time: `${appointmentDate.toISOString().split("T")[0]} ${hours}:00`,
+      reason: `Follow up on ${selectedService} inquiry`,
+    };
+  }
+
+  return result;
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(
@@ -262,6 +325,9 @@ export async function POST(
         break;
       case "code-reviewer":
         result = await runCodeReviewer(body);
+        break;
+      case "voicecharm-receptionist":
+        result = await runVoiceCharmReceptionist(body);
         break;
       default:
         // For skills without a real implementation, return example output

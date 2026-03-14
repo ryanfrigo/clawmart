@@ -152,6 +152,42 @@ export const agentSkills: AgentSkill[] = [
     responseTime: "~0.8s",
     uptime: "99.9%",
   },
+  {
+    id: "voicecharm-receptionist",
+    name: "VoiceCharm AI Receptionist",
+    description: "Professional AI receptionist that handles inbound calls — books appointments, qualifies leads, 24/7.",
+    longDescription:
+      "Deploy an AI-powered receptionist for any service business. Handles inbound calls with natural conversation, books appointments via Calendly, qualifies leads, and sends follow-up messages. Trained for HVAC, plumbing, medical, legal, and professional services. 24/7 coverage, no hold times, no missed calls.",
+    category: "Voice AI",
+    pricePerCall: "$0.25",
+    priceRaw: 0.25,
+    endpoint: "/api/skills/voicecharm-receptionist",
+    method: "POST",
+    rating: 4.9,
+    reviews: 47,
+    calls: "3.2K",
+    author: "voicecharm",
+    tags: ["Voice", "Receptionist", "Appointments", "Leads"],
+    exampleInput: JSON.stringify({
+      business_name: "Ryan's HVAC",
+      business_type: "hvac",
+      phone_number: "+15551234567",
+      service_area: "Oakland, CA",
+      services: ["heating repair", "ac installation", "maintenance"],
+      calendar_url: "https://calendly.com/ryanhvac",
+    }),
+    exampleOutput: JSON.stringify({
+      call_id: "call_x402_demo_001",
+      status: "handled",
+      duration: "3m 45s",
+      outcome: "appointment_booked",
+      customer_info: { name: "Sarah Johnson", phone: "+15551239999" },
+      appointment: { service: "AC Repair", date: "2026-03-15", time: "10:00" },
+      follow_up_sent: true,
+    }),
+    responseTime: "~2.0s",
+    uptime: "99.9%",
+  },
 ];
 
 export function getSkillById(id: string): AgentSkill | undefined {
