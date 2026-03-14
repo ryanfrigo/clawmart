@@ -1,12 +1,22 @@
 import { v } from "convex/values"
 import { mutation, query, internalMutation } from "./_generated/server"
-import { getAuthUserId } from "@convex-dev/auth/server"
+
+// Helper: resolve Clerk identity → internal user _id
+async function getCurrentUserId(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> }; db: any }) {
+  const identity = await ctx.auth.getUserIdentity()
+  if (!identity) return null
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q: any) => q.eq("clerkId", identity.subject))
+    .first()
+  return user?._id ?? null
+}
 
 // Get user's current credit balance
 export const getBalance = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await getCurrentUserId(ctx)
     if (!userId) return null
 
     const balance = await ctx.db
@@ -22,7 +32,7 @@ export const getBalance = query({
 export const getTransactions = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await getCurrentUserId(ctx)
     if (!userId) return []
 
     return await ctx.db
@@ -142,7 +152,7 @@ export const checkSufficientCredits = query({
     creditsRequired: v.number(),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await getCurrentUserId(ctx)
     if (!userId) return { sufficient: false, balance: 0 }
 
     const balance = await ctx.db
