@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SkillsGrid } from "@/components/skills-grid";
-import { LiveDemo } from "@/components/live-demo";
+import { X402Demo } from "@/components/x402-demo";
 
 export default function HomePage() {
   return (
@@ -170,7 +170,7 @@ const data = await result.json();
               Real AI results. No wallet required. Just HTTP.
             </p>
           </div>
-          <LiveDemo />
+          <X402Demo />
         </div>
       </section>
 
