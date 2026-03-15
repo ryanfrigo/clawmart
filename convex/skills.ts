@@ -303,6 +303,21 @@ export const seed = mutation({
         exampleOutput: '{ "results": [{ "email": "user@gmail.com", "valid": true, "disposable": false, "score": 0.95 }] }',
         responseTime: "~1.0s",
       },
+      {
+        slug: "url-to-markdown",
+        name: "URL to Markdown",
+        description: "Convert any web page to clean, readable markdown format.",
+        longDescription: "Extract main content from any URL and convert to well-formatted markdown. Perfect for documentation, note-taking, and content processing. Includes metadata extraction and compression statistics.",
+        category: "Content",
+        endpoint: "/api/x402/url-to-markdown",
+        method: "POST" as const,
+        pricePerCall: 0.002,
+        authorName: "clawmart",
+        tags: ["Markdown", "Content", "Documentation", "Conversion"],
+        exampleInput: '{ "url": "https://github.com/microsoft/vscode/blob/main/README.md" }',
+        exampleOutput: '{ "title": "Visual Studio Code", "markdown": "# Visual Studio Code\\n\\nA code editor...", "metadata": { "wordCount": 245 } }',
+        responseTime: "~2.5s",
+      },
     ];
 
     for (const skill of skills) {
