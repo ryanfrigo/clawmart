@@ -20,9 +20,9 @@ import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
 const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Workforces" },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Overview" },
   { href: "/dashboard/skills", icon: Sparkles, label: "My Skills" },
-  { href: "/dashboard/new", icon: Plus, label: "New Workforce" },
+  { href: "/dashboard/skills/submit", icon: Plus, label: "Submit Skill" },
   { href: "/dashboard/billing", icon: CreditCard, label: "Billing" },
   { href: "/dashboard/settings", icon: Settings, label: "Settings" },
 ];

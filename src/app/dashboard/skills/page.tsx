@@ -6,7 +6,7 @@ import { api } from "../../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Trash2, Plus } from "lucide-react";
+import { Star, Trash2, Plus, Pencil, Zap, DollarSign, Power } from "lucide-react";
 import Link from "next/link";
 
 export default function SkillsPage() {
@@ -16,6 +16,17 @@ export default function SkillsPage() {
     user ? { clerkId: user.id } : "skip"
   );
   const removeSkill = useMutation(api.skills.remove);
+  const updateSkill = useMutation(api.skills.update);
+
+  const handleToggleStatus = (
+    id: string,
+    currentStatus: string
+  ) => {
+    updateSkill({
+      id: id as Parameters<typeof updateSkill>[0]["id"],
+      status: currentStatus === "active" ? "disabled" : "active",
+    });
+  };
 
   return (
     <div>
@@ -69,50 +80,98 @@ export default function SkillsPage() {
               className="border-white/5 bg-zinc-900/50 transition hover:border-white/10"
             >
               <CardHeader className="flex flex-row items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{skill.name}</CardTitle>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg truncate">{skill.name}</CardTitle>
                   <Badge
                     variant="outline"
                     className={`mt-2 ${
                       skill.status === "active"
                         ? "border-green-500/30 text-green-400"
+                        : skill.status === "pending"
+                        ? "border-yellow-500/30 text-yellow-400"
                         : "border-zinc-500/30 text-zinc-400"
                     }`}
                   >
                     {skill.status}
                   </Badge>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-zinc-500 hover:text-red-400"
-                  onClick={() => removeSkill({ id: skill._id })}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1 ml-2 shrink-0">
+                  {/* Toggle active/disabled */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-8 w-8 p-0 ${
+                      skill.status === "active"
+                        ? "text-green-400 hover:text-zinc-400"
+                        : "text-zinc-500 hover:text-green-400"
+                    }`}
+                    title={skill.status === "active" ? "Disable skill" : "Enable skill"}
+                    onClick={() => handleToggleStatus(skill._id, skill.status)}
+                  >
+                    <Power className="h-4 w-4" />
+                  </Button>
+                  {/* Edit */}
+                  <Link href={`/dashboard/skills/${skill._id}/edit`}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-zinc-500 hover:text-white"
+                      title="Edit skill"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  {/* Delete */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-zinc-500 hover:text-red-400"
+                    title="Delete skill"
+                    onClick={() => removeSkill({ id: skill._id })}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-zinc-400 line-clamp-2">
                   {skill.description}
                 </p>
-                <div className="mt-4 flex items-center justify-between text-sm">
-                  <span className="text-zinc-500">
-                    ${skill.pricePerCall}/call
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                    <span className="text-zinc-400">
+
+                {/* Stats row */}
+                <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg border border-white/5 bg-zinc-800/40 p-3">
+                  <div className="flex flex-col items-center text-center">
+                    <Zap className="mb-1 h-3.5 w-3.5 text-zinc-500" />
+                    <span className="text-sm font-semibold text-white">
+                      {skill.totalCalls.toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-zinc-600">calls</span>
+                  </div>
+                  <div className="flex flex-col items-center text-center">
+                    <DollarSign className="mb-1 h-3.5 w-3.5 text-zinc-500" />
+                    <span className="text-sm font-semibold text-white">
+                      ${(skill.totalCalls * skill.pricePerCall).toFixed(2)}
+                    </span>
+                    <span className="text-[10px] text-zinc-600">revenue</span>
+                  </div>
+                  <div className="flex flex-col items-center text-center">
+                    <Star className="mb-1 h-3.5 w-3.5 text-zinc-500" />
+                    <span className="text-sm font-semibold text-white">
                       {skill.averageRating > 0
                         ? skill.averageRating.toFixed(1)
                         : "—"}
                     </span>
-                    <span className="text-zinc-600">
-                      ({skill.totalReviews})
-                    </span>
+                    <span className="text-[10px] text-zinc-600">rating</span>
                   </div>
                 </div>
-                <div className="mt-2 text-xs text-zinc-600">
-                  {skill.totalCalls} calls
+
+                <div className="mt-3 flex items-center justify-between text-sm">
+                  <span className="text-zinc-500">
+                    ${skill.pricePerCall}/call
+                  </span>
+                  <span className="text-xs text-zinc-600">
+                    {skill.totalReviews} review{skill.totalReviews !== 1 ? "s" : ""}
+                  </span>
                 </div>
               </CardContent>
             </Card>
