@@ -30,6 +30,8 @@ export default function HomePage() {
             </Link>
             <div className="hidden items-center gap-6 md:flex">
               <a href="#skills" className="text-[13px] text-zinc-500 transition hover:text-white">Skills</a>
+              <Link href="/agents" className="text-[13px] text-zinc-500 transition hover:text-white">Agents</Link>
+              <Link href="/categories" className="text-[13px] text-zinc-500 transition hover:text-white">Categories</Link>
               <a href="#how-it-works" className="text-[13px] text-zinc-500 transition hover:text-white">How it Works</a>
               <Link href="/docs" className="text-[13px] text-zinc-500 transition hover:text-white">Docs</Link>
               <Link href="/credits" className="text-[13px] text-zinc-500 transition hover:text-white">Credits</Link>

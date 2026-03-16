@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { use } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
+import { useUser } from "@clerk/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import {
   ArrowLeft,
@@ -17,6 +18,8 @@ import {
   Play,
   Loader2,
   ExternalLink,
+  ShoppingCart,
+  LogIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -36,14 +39,30 @@ function StarRating({ rating }: { rating: number }) {
 
 export default function SkillDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { isSignedIn } = useUser();
   const skill = useQuery(api.skills.getBySlug, { slug: id });
+  const creditBalance = useQuery(api.credits.getBalance);
+  const spendAndCall = useMutation(api.credits.spendAndCall);
+
   const [copied, setCopied] = useState(false);
+  // Demo mode state (unauthenticated)
   const [trying, setTrying] = useState(false);
   const [tryResult, setTryResult] = useState<string | null>(null);
+  // Credit call state (authenticated)
+  const [callingWithCredits, setCallingWithCredits] = useState(false);
+  const [creditCallResult, setCreditCallResult] = useState<string | null>(null);
+  const [remainingAfterCall, setRemainingAfterCall] = useState<number | null>(null);
+
   const [inputValue, setInputValue] = useState("");
 
   // Update input when skill loads
   const effectiveInput = inputValue || skill?.exampleInput || "";
+
+  // Credit math: 1 credit = $0.001
+  const creditsRequired = skill ? Math.ceil(skill.pricePerCall / 0.001) : 0;
+  const hasEnoughCredits = typeof creditBalance === "number" && creditBalance >= creditsRequired;
+
+  const displayBalance = remainingAfterCall !== null ? remainingAfterCall : (creditBalance ?? 0);
 
   if (skill === undefined) {
     return (
@@ -68,21 +87,16 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleTry = async () => {
+  // Demo mode: free call with X-Demo header (no credits deducted)
+  const handleDemoTry = async () => {
     setTrying(true);
     setTryResult(null);
     try {
-      // Use /api/skills/<slug> endpoint for demo skills, or skill.endpoint for external skills
       const isInternalSkill = skill.endpoint.startsWith("/api/skills/");
-      const endpoint = isInternalSkill
-        ? skill.endpoint
-        : skill.endpoint;
-
-      const res = await fetch(endpoint, {
+      const res = await fetch(skill.endpoint, {
         method: skill.method,
         headers: {
           "Content-Type": "application/json",
-          // X-Demo: true enables real results without payment in the Try It panel
           ...(isInternalSkill ? { "X-Demo": "true" } : {}),
         },
         body: skill.method !== "GET" ? effectiveInput : undefined,
@@ -113,6 +127,38 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  // Credit call: deduct credits then call the real endpoint
+  const handleCreditCall = async () => {
+    if (!skill) return;
+    setCallingWithCredits(true);
+    setCreditCallResult(null);
+    setRemainingAfterCall(null);
+    try {
+      // 1. Deduct credits via Convex mutation
+      const result = await spendAndCall({ skillId: skill._id, input: effectiveInput });
+      setRemainingAfterCall(result.remainingCredits);
+
+      // 2. Call the real skill endpoint (no X-Demo header)
+      const res = await fetch(skill.endpoint, {
+        method: skill.method,
+        headers: { "Content-Type": "application/json" },
+        body: skill.method !== "GET" ? effectiveInput : undefined,
+      });
+      const data = await res.json();
+      setCreditCallResult(JSON.stringify(data, null, 2));
+    } catch (err) {
+      setCreditCallResult(
+        JSON.stringify(
+          { error: err instanceof Error ? err.message : "Call failed" },
+          null,
+          2,
+        ),
+      );
+    } finally {
+      setCallingWithCredits(false);
+    }
+  };
+
   const curlCommand = `curl -X ${skill.method} https://clawmart.co${skill.endpoint} \\
   -H "Content-Type: application/json" \\
   -d '${skill.exampleInput || "{}"}'`;
@@ -129,11 +175,23 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
               <span className="text-[15px] font-semibold tracking-tight">ClawMart</span>
             </Link>
           </div>
-          <Link href="/sign-up">
-            <Button size="sm" className="h-8 rounded-lg bg-white text-[#09090b] text-[13px] font-medium hover:bg-zinc-200">
-              List a Skill
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Credit balance pill — only shown when signed in */}
+            {isSignedIn && typeof creditBalance === "number" && (
+              <Link
+                href="/credits"
+                className="flex items-center gap-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/[0.06] px-3 py-1 text-[12px] font-medium text-indigo-300 transition hover:border-indigo-500/40 hover:bg-indigo-500/[0.1]"
+              >
+                <Zap className="h-3 w-3" />
+                {displayBalance.toLocaleString()} credits
+              </Link>
+            )}
+            <Link href="/sign-up">
+              <Button size="sm" className="h-8 rounded-lg bg-white text-[#09090b] text-[13px] font-medium hover:bg-zinc-200">
+                List a Skill
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 
@@ -164,6 +222,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
           <div className="flex flex-col items-end gap-2">
             <span className="text-3xl font-bold text-emerald-400">${skill.pricePerCall}</span>
             <span className="text-[12px] text-zinc-500">USDC per call</span>
+            <span className="text-[11px] text-indigo-400">{creditsRequired.toLocaleString()} credits</span>
           </div>
         </div>
 
@@ -207,7 +266,9 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
             </div>
             <span className="text-[11px] text-zinc-500">{skill.method} {skill.endpoint}</span>
           </div>
+
           <div className="p-6 space-y-4">
+            {/* Request body */}
             <div>
               <label className="text-[12px] text-zinc-500 mb-2 block">Request Body</label>
               <textarea
@@ -217,20 +278,115 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
                 rows={3}
               />
             </div>
-            <Button
-              onClick={handleTry}
-              disabled={trying}
-              className="h-9 rounded-lg bg-indigo-500 text-white text-[13px] font-medium hover:bg-indigo-600 disabled:opacity-50"
-            >
-              {trying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Zap className="h-4 w-4 mr-2" />}
-              {trying ? "Calling..." : `Call Skill — $${skill.pricePerCall} USDC`}
-            </Button>
-            {tryResult && (
-              <div className="relative">
-                <label className="text-[12px] text-zinc-500 mb-2 block">Response</label>
-                <pre className="rounded-xl border border-white/[0.08] bg-[#09090b] p-4 text-[13px] text-emerald-400/80 font-mono leading-relaxed overflow-x-auto">
-                  {tryResult}
-                </pre>
+
+            {/* Credit info + call button — varies by auth state */}
+            {isSignedIn ? (
+              <div className="space-y-3">
+                {/* Balance + cost info */}
+                <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                  <div className="flex items-center gap-2 text-[13px] text-zinc-400">
+                    <Zap className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>Your balance:</span>
+                    <span className="font-semibold text-white">{displayBalance.toLocaleString()} credits</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[12px] text-zinc-500">
+                    <span>Cost:</span>
+                    <span className="font-semibold text-indigo-400">{creditsRequired} credits</span>
+                  </div>
+                </div>
+
+                {hasEnoughCredits ? (
+                  <Button
+                    onClick={handleCreditCall}
+                    disabled={callingWithCredits}
+                    className="h-9 rounded-lg bg-indigo-500 text-white text-[13px] font-medium hover:bg-indigo-600 disabled:opacity-50"
+                  >
+                    {callingWithCredits ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Zap className="h-4 w-4 mr-2" />
+                    )}
+                    {callingWithCredits ? "Calling..." : `Call Skill — ${creditsRequired} credits`}
+                  </Button>
+                ) : (
+                  <Link href="/credits">
+                    <Button className="h-9 w-full rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[13px] font-medium hover:bg-amber-500/20">
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Buy Credits — need {(creditsRequired - (creditBalance ?? 0)).toLocaleString()} more
+                    </Button>
+                  </Link>
+                )}
+
+                {/* Credit call result */}
+                {creditCallResult && (
+                  <div className="relative">
+                    <label className="text-[12px] text-zinc-500 mb-2 block flex items-center gap-2">
+                      Response
+                      {remainingAfterCall !== null && (
+                        <span className="text-indigo-400">
+                          — ⚡ {remainingAfterCall.toLocaleString()} credits remaining
+                        </span>
+                      )}
+                    </label>
+                    <pre className="rounded-xl border border-white/[0.08] bg-[#09090b] p-4 text-[13px] text-emerald-400/80 font-mono leading-relaxed overflow-x-auto">
+                      {creditCallResult}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Demo mode divider */}
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="flex-1 h-px bg-white/[0.06]" />
+                  <span className="text-[11px] text-zinc-600">or try free demo</span>
+                  <div className="flex-1 h-px bg-white/[0.06]" />
+                </div>
+                <Button
+                  onClick={handleDemoTry}
+                  disabled={trying}
+                  variant="ghost"
+                  className="h-8 w-full rounded-lg border border-white/[0.06] text-zinc-500 text-[12px] hover:text-white hover:border-white/[0.12] disabled:opacity-50"
+                >
+                  {trying ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : null}
+                  {trying ? "Running demo..." : "Run Demo (no credits)"}
+                </Button>
+                {tryResult && (
+                  <div className="relative">
+                    <label className="text-[12px] text-zinc-500 mb-2 block">Demo Response</label>
+                    <pre className="rounded-xl border border-white/[0.08] bg-[#09090b] p-4 text-[13px] text-emerald-400/80 font-mono leading-relaxed overflow-x-auto">
+                      {tryResult}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Not signed in: show demo button + sign-in CTA */
+              <div className="space-y-3">
+                <Button
+                  onClick={handleDemoTry}
+                  disabled={trying}
+                  className="h-9 rounded-lg bg-indigo-500 text-white text-[13px] font-medium hover:bg-indigo-600 disabled:opacity-50"
+                >
+                  {trying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Zap className="h-4 w-4 mr-2" />}
+                  {trying ? "Calling..." : `Call Skill — $${skill.pricePerCall} USDC`}
+                </Button>
+
+                {tryResult && (
+                  <div className="relative">
+                    <label className="text-[12px] text-zinc-500 mb-2 block">Response</label>
+                    <pre className="rounded-xl border border-white/[0.08] bg-[#09090b] p-4 text-[13px] text-emerald-400/80 font-mono leading-relaxed overflow-x-auto">
+                      {tryResult}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Sign in CTA */}
+                <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                  <LogIn className="h-4 w-4 text-indigo-400 shrink-0" />
+                  <span className="text-[13px] text-zinc-400">
+                    <Link href="/sign-in" className="text-indigo-400 hover:underline font-medium">Sign in</Link>
+                    {" "}to call with credits and track your usage
+                  </span>
+                </div>
               </div>
             )}
           </div>

@@ -83,6 +83,8 @@ export default function BrowseSkillsPage() {
             </Link>
             <div className="hidden items-center gap-6 md:flex">
               <Link href="/skills" className="text-[13px] text-white font-medium">Skills</Link>
+              <Link href="/agents" className="text-[13px] text-zinc-500 transition hover:text-white">Agents</Link>
+              <Link href="/categories" className="text-[13px] text-zinc-500 transition hover:text-white">Categories</Link>
               <Link href="/docs" className="text-[13px] text-zinc-500 transition hover:text-white">Docs</Link>
             </div>
           </div>

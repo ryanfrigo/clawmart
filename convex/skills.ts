@@ -101,7 +101,7 @@ export const create = mutation({
       totalCalls: 0,
       totalReviews: 0,
       averageRating: 0,
-      status: "active",
+      status: "pending",
       createdAt: Date.now(),
     });
     return skillId;
@@ -132,6 +132,30 @@ export const update = mutation({
       Object.entries(updates).filter(([, v]) => v !== undefined)
     );
     await ctx.db.patch(id, filtered);
+  },
+});
+
+export const listByCategory = query({
+  args: { category: v.string() },
+  handler: async (ctx, args) => {
+    const skills = await ctx.db
+      .query("skills")
+      .withIndex("by_category", (q) => q.eq("category", args.category))
+      .collect();
+    return skills.filter((s) => s.status === "active");
+  },
+});
+
+export const getCategoryCounts = query({
+  args: {},
+  handler: async (ctx) => {
+    const skills = await ctx.db.query("skills").collect();
+    const active = skills.filter((s) => s.status === "active");
+    const counts: Record<string, number> = {};
+    for (const skill of active) {
+      counts[skill.category] = (counts[skill.category] || 0) + 1;
+    }
+    return counts;
   },
 });
 

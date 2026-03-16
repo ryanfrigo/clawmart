@@ -145,6 +145,67 @@ export const addCredits = mutation({
   },
 })
 
+// Public mutation: deduct credits for a skill call (called from frontend)
+// spendCredits is an internalMutation, so this wrapper exposes the same logic publicly
+export const spendAndCall = mutation({
+  args: {
+    skillId: v.id("skills"),
+    input: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    // Look up user by Clerk ID
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q: any) => q.eq("clerkId", identity.subject))
+      .first()
+    if (!user) throw new Error("User not found. Please sign in again.")
+
+    // Get skill to find pricePerCall
+    const skill = await ctx.db.get(args.skillId)
+    if (!skill) throw new Error("Skill not found")
+
+    // Convert price to credits: 1 credit = $0.001, so creditsRequired = price / 0.001
+    const creditsRequired = Math.ceil(skill.pricePerCall / 0.001)
+
+    // Check current balance
+    const balance = await ctx.db
+      .query("creditBalances")
+      .withIndex("by_userId", (q: any) => q.eq("userId", user._id))
+      .first()
+
+    const currentCredits = balance?.credits || 0
+    if (currentCredits < creditsRequired) {
+      throw new Error(
+        `Insufficient credits. Required: ${creditsRequired}, Available: ${currentCredits}`
+      )
+    }
+
+    // Deduct credits
+    if (balance) {
+      await ctx.db.patch(balance._id, {
+        credits: currentCredits - creditsRequired,
+        lastUsed: Date.now(),
+      })
+    }
+
+    // Record transaction
+    await ctx.db.insert("creditTransactions", {
+      userId: user._id,
+      type: "spent",
+      amount: -creditsRequired,
+      description: `Used ${skill.name} skill`,
+      skillId: args.skillId,
+      metadata: { input: args.input.substring(0, 200) },
+      createdAt: Date.now(),
+    })
+
+    return { success: true, remainingCredits: currentCredits - creditsRequired }
+  },
+})
+
 // Check if user has sufficient credits for a skill call
 export const checkSufficientCredits = query({
   args: { 

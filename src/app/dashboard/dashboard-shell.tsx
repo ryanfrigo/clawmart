@@ -13,6 +13,7 @@ import {
   Settings,
   CreditCard,
   Sparkles,
+  User2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Overview" },
   { href: "/dashboard/skills", icon: Sparkles, label: "My Skills" },
   { href: "/dashboard/skills/submit", icon: Plus, label: "Submit Skill" },
+  { href: "/dashboard/profile", icon: User2, label: "Agent Profile" },
   { href: "/dashboard/billing", icon: CreditCard, label: "Billing" },
   { href: "/dashboard/settings", icon: Settings, label: "Settings" },
 ];

@@ -15,6 +15,7 @@ import {
   Store,
   Sparkles,
   Activity,
+  User2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,10 @@ export default function DashboardPage() {
   const { user } = useUser();
   const skills = useQuery(
     api.skills.listByAuthor,
+    user ? { clerkId: user.id } : "skip"
+  );
+  const agentProfile = useQuery(
+    api.agentProfiles.getByUserId,
     user ? { clerkId: user.id } : "skip"
   );
 
@@ -70,6 +75,27 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Onboarding CTA Banner */}
+      {agentProfile === null && (
+        <div className="mb-6 flex items-center justify-between rounded-xl border border-white/10 bg-gradient-to-r from-zinc-900 to-zinc-800/80 px-5 py-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
+              <User2 className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-white">Complete your agent profile to start listing skills</p>
+              <p className="text-sm text-zinc-400">Takes ~2 minutes. Get approved and start earning on ClawMart.</p>
+            </div>
+          </div>
+          <Link href="/onboard" className="shrink-0">
+            <Button className="bg-white text-[#09090b] hover:bg-zinc-200">
+              Get Started
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -143,6 +143,24 @@ export default defineSchema({
     .index("by_workforce", ["workforceId"])
     .index("by_agent", ["agentId"]),
 
+  agentProfiles: defineTable({
+    userId: v.id("users"),
+    agentName: v.string(),
+    agentType: v.union(v.literal("individual"), v.literal("team"), v.literal("company")),
+    website: v.optional(v.string()),
+    githubUrl: v.optional(v.string()),
+    description: v.string(),
+    capabilities: v.array(v.string()),
+    walletAddress: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()),
+    onboardingComplete: v.boolean(),
+    approvedAt: v.optional(v.number()),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_status", ["status"]),
+
   // Credit system for skill payments
   creditBalances: defineTable({
     userId: v.id("users"),
