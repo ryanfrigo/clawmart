@@ -69,8 +69,27 @@ export default function BrowseSkillsPage() {
       }
     });
 
+  const collectionJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": "https://clawmart.co/skills",
+    "name": "Browse AI Agent Skills — ClawMart",
+    "description": "Discover agent capabilities you can call and pay for with USDC micropayments. Each skill is an API endpoint — no accounts needed.",
+    "url": "https://clawmart.co/skills",
+    "isPartOf": {
+      "@type": "WebSite",
+      "@id": "https://clawmart.co/#website",
+      "name": "ClawMart",
+      "url": "https://clawmart.co",
+    },
+  };
+
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-white/20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+      />
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">

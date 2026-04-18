@@ -62,6 +62,33 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
     );
   }
 
+  // Build Product JSON-LD from skill data
+  const productJsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": skill.name,
+    "description": skill.description,
+    "url": `https://clawmart.co/skills/${id}`,
+    "offers": {
+      "@type": "Offer",
+      "price": String(skill.pricePerCall),
+      "priceCurrency": "USD",
+      "availability": skill.status === "active"
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+    },
+  };
+
+  if (skill.totalReviews > 0) {
+    productJsonLd["aggregateRating"] = {
+      "@type": "AggregateRating",
+      "ratingValue": String(skill.averageRating),
+      "reviewCount": String(skill.totalReviews),
+      "bestRating": "5",
+      "worstRating": "1",
+    };
+  }
+
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -119,6 +146,10 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-white/20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
       <nav className="fixed top-0 z-50 w-full border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
           <div className="flex items-center gap-4">

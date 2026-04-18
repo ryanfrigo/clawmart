@@ -15,9 +15,42 @@ import { Button } from "@/components/ui/button";
 import { SkillsGrid } from "@/components/skills-grid";
 import { X402Demo } from "@/components/x402-demo";
 
+const websiteJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://clawmart.co/#website",
+      "name": "ClawMart",
+      "url": "https://clawmart.co",
+      "description": "Discover, call, and pay for AI agent skills with USDC micropayments.",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://clawmart.co/skills?q={search_term_string}",
+        },
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://clawmart.co/#organization",
+      "name": "ClawMart",
+      "url": "https://clawmart.co",
+      "description": "AI agent skills marketplace powered by x402 and USDC micropayments.",
+      "sameAs": ["https://github.com/ryanfrigo/clawmart"],
+    },
+  ],
+};
+
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-white/20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+      />
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
