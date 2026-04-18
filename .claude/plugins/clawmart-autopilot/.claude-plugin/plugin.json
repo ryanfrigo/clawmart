@@ -1,0 +1,9 @@
+{
+  "name": "clawmart-autopilot",
+  "description": "Bounded autonomous feedback loop for clawmart: observe traction, ideate, build one change, ship as draft PR, measure, reflect. Never touches secrets, never pushes to main, never posts externally.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Ryan Frigo"
+  },
+  "keywords": ["clawmart", "x402", "autopilot", "feedback-loop", "agents"]
+}
