@@ -5,7 +5,7 @@
 **Action:** Rewrote landing hero (badge, H1, subhead, primary CTA, trust strip), footer tagline, `layout.tsx` metadata (title/description/OG/Twitter), and the home JSON-LD descriptions. Primary CTA now points at `/api/catalog` directly — the one URL an agent developer should take away from the page.
 
 - Branch: `autopilot/tick-2-20260418-001008-landing-demand-side`
-- PR: (filled in below)
+- PR: https://github.com/ryanfrigo/clawmart/pull/1 (draft)
 - Files touched: 3 (`src/app/page.tsx`, `src/app/layout.tsx`, `autopilot-state/metrics-history.jsonl`)
 - Diff size: ~19 insertions / 17 deletions
 - Lint: baseline (40 pre-existing errors on main, 0 introduced)

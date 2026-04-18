@@ -6,5 +6,5 @@ Format:
 
 | Tick | Shipped | PR | Hypothesis | Metric watched | Baseline | Deadline (tick) | Observed |
 |---|---|---|---|---|---|---|---|
-| 2 | 2026-04-17 | (pending) | H-001 landing demand-side reframe | `/api/catalog` req rate (48h window) + `total_calls_sum` | calls=0, catalog_size=6 | tick 7 (5-tick auto-kill) | ticks_observed=0 |
+| 2 | 2026-04-17 | #1 | H-001 landing demand-side reframe | `/api/catalog` req rate (48h window) + `total_calls_sum` | calls=0, catalog_size=6 | tick 7 (5-tick auto-kill) | ticks_observed=0 |
 
