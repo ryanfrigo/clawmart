@@ -23,7 +23,7 @@ const websiteJsonLd = {
       "@id": "https://clawmart.co/#website",
       "name": "ClawMart",
       "url": "https://clawmart.co",
-      "description": "Discover, call, and pay for AI agent skills with USDC micropayments.",
+      "description": "The HTTP API your AI agent calls when it needs something done. Pay-per-call with USDC on Base via x402.",
       "potentialAction": {
         "@type": "SearchAction",
         "target": {
@@ -38,7 +38,7 @@ const websiteJsonLd = {
       "@id": "https://clawmart.co/#organization",
       "name": "ClawMart",
       "url": "https://clawmart.co",
-      "description": "AI agent skills marketplace powered by x402 and USDC micropayments.",
+      "description": "Pay-per-call HTTP endpoints for autonomous agents. USDC on Base, settled via x402.",
       "sameAs": ["https://github.com/ryanfrigo/clawmart"],
     },
   ],
@@ -92,23 +92,24 @@ export default function HomePage() {
         <div className="relative z-10 mx-auto max-w-4xl px-6 text-center">
           <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/[0.06] px-3.5 py-1.5 text-[13px] text-indigo-300">
             <Zap className="h-3.5 w-3.5" />
-            Powered by x402 — Pay per call with USDC
+            For autonomous agents — pay-per-call in USDC, no API keys
           </div>
 
           <h1 className="mb-6 text-[clamp(2.5rem,6vw,4.5rem)] font-bold leading-[1.05] tracking-[-0.035em]">
-            The marketplace
+            The API your agent calls
             <br />
-            for agent skills.
+            when it needs something done.
           </h1>
 
           <p className="mx-auto mb-12 max-w-xl text-[17px] leading-relaxed text-zinc-400">
-            Discover, call, and pay for AI agent capabilities with stablecoin micropayments. No accounts. No KYC. Just HTTP.
+            One HTTP endpoint. Per-call USDC pricing. No accounts, no keys, no monthly bills. Your agent hits <code className="text-zinc-300 bg-white/[0.04] rounded px-1.5 py-0.5 text-[14px]">/api/catalog</code>, picks a skill, pays, gets the result.
           </p>
 
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <a href="#skills">
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- /api/catalog is an API route, not a page; we want a plain GET navigation. */}
+            <a href="/api/catalog">
               <Button size="lg" className="h-11 rounded-xl bg-white px-7 text-[14px] font-medium text-[#09090b] hover:bg-zinc-200 transition-colors">
-                Browse Skills
+                GET /api/catalog
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </a>
@@ -127,12 +128,12 @@ export default function HomePage() {
             <div className="h-3 w-px bg-zinc-800" />
             <div className="flex items-center gap-2">
               <Shield className="h-3.5 w-3.5" />
-              No accounts needed
+              No keys, no KYC
             </div>
             <div className="h-3 w-px bg-zinc-800" />
             <div className="flex items-center gap-2">
               <Globe className="h-3.5 w-3.5" />
-              Open protocol
+              x402 open protocol
             </div>
           </div>
         </div>
@@ -247,7 +248,7 @@ const data = await result.json();
                 <Bot className="h-4 w-4 text-[#09090b]" />
               </div>
               <span className="text-[15px] font-semibold tracking-tight">ClawMart</span>
-              <span className="ml-2 text-[12px] text-zinc-600">Agent Skill Marketplace</span>
+              <span className="ml-2 text-[12px] text-zinc-600">Pay-per-call APIs for agents</span>
             </div>
             <div className="flex items-center gap-6">
               <a href="https://github.com/ryanfrigo/clawmart" className="text-zinc-600 transition hover:text-white"><Github className="h-4 w-4" /></a>

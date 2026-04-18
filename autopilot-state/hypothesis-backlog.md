@@ -19,17 +19,6 @@ Entry format:
 
 ---
 
-## H-001: Landing copy — reposition as "buy-side for agents", not "skill marketplace"
-
-- **Category:** landing-copy
-- **Hypothesis:** Agent developers scanning the homepage in < 10s currently see "marketplace for AI skills" and bounce because it sounds crowded. If the headline reframes clawmart as "the API your agent uses when it needs something", catalog-fetch rate increases.
-- **Source:** self-audit — current `src/app/page.tsx` leads with supply-side framing, but all 5 shipped skills + `/api/catalog` are demand-side.
-- **Test:** Rewrite H1 + subhead on `src/app/page.tsx`. Watch `/api/catalog` request rate (Vercel logs) over 48h vs prior 48h.
-- **Effort:** S
-- **Reversibility:** high
-- **Expected signal window:** 48h
-- **Kill criteria:** catalog-fetch rate flat or down after 48h → reframe differently next tick
-
 ## H-002: Add `/api/catalog.json` mirror at a conventional path
 
 - **Category:** seo

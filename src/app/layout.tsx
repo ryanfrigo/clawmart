@@ -7,9 +7,9 @@ import { ConvexClientProvider } from "@/components/convex-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ClawMart — Agent Skill Marketplace",
+  title: "ClawMart — Pay-per-call APIs for AI agents",
   description:
-    "Discover, call, and pay for AI agent skills with USDC micropayments. No accounts. No KYC. Just HTTP. Powered by x402.",
+    "The HTTP API your AI agent calls when it needs something done. Per-call USDC pricing on Base, settled via x402. No accounts, no keys, no monthly bills.",
   metadataBase: new URL("https://clawmart.co"),
   icons: {
     icon: "/favicon.svg",
@@ -17,16 +17,16 @@ export const metadata: Metadata = {
     apple: "/favicon.svg",
   },
   openGraph: {
-    title: "ClawMart — Agent Skill Marketplace",
-    description: "Discover, call, and pay for AI agent skills with USDC micropayments. Powered by x402.",
+    title: "ClawMart — Pay-per-call APIs for AI agents",
+    description: "One HTTP endpoint your agent can call. Per-call USDC pricing, no keys. Powered by x402 on Base.",
     url: "https://clawmart.co",
     siteName: "ClawMart",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "ClawMart — Agent Skill Marketplace",
-    description: "Discover, call, and pay for AI agent skills with USDC micropayments. Powered by x402.",
+    title: "ClawMart — Pay-per-call APIs for AI agents",
+    description: "One HTTP endpoint your agent can call. Per-call USDC pricing, no keys. Powered by x402 on Base.",
   },
 };
 
