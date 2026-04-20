@@ -44,15 +44,16 @@ export async function POST(request: NextRequest) {
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `${agent.role} — Clawmart Agent`,
+              name: `${agent.role} - Clawmart Agent`,
               description: agent.description,
             },
-            unit_amount: agent.pricePerMonth * 100,
+            unit_amount: Math.round(agent.pricePerMonth * 100),
             recurring: { interval: "month" },
           },
           quantity: 1,
@@ -65,7 +66,6 @@ export async function POST(request: NextRequest) {
           agentSlug,
         },
       },
-      payment_method_collection: "always",
       success_url: `${appUrl}/agents/${agentSlug}/hire/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/agents/${agentSlug}/hire`,
       metadata: {
@@ -84,9 +84,27 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error("/api/agents/hire error:", error);
+    const detail = error instanceof Error ? error.message : String(error);
+    const stripeType =
+      error && typeof error === "object" && "type" in error
+        ? String((error as { type?: string }).type)
+        : undefined;
+    const stripeCode =
+      error && typeof error === "object" && "code" in error
+        ? String((error as { code?: string }).code)
+        : undefined;
+    console.error("/api/agents/hire error:", {
+      type: stripeType,
+      code: stripeCode,
+      message: detail,
+    });
     return NextResponse.json(
-      { error: "Failed to create hire session" },
+      {
+        error: "Failed to create hire session",
+        detail,
+        stripeType,
+        stripeCode,
+      },
       { status: 500 },
     );
   }
