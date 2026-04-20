@@ -6,8 +6,8 @@ Format:
 
 | Tick | Shipped | PR | Hypothesis | Metric watched | Baseline | Deadline (tick) | Observed |
 |---|---|---|---|---|---|---|---|
-| 2 | 2026-04-17 | #1 | H-001 landing demand-side reframe | `/api/catalog` req rate (48h window) + `total_calls_sum` | calls=0, catalog_size=6 | tick 7 (5-tick auto-kill) | ticks_observed=0 |
-| 3 | 2026-04-20 | #2 (draft) | H-005 homepage pivot to agent-workforce framing | homepage → `/agents` click-through; indirect via /agents hits | 0 | 14d after merge of v0 bundle | pending merge |
-| 4 | 2026-04-20 | #3 (draft) | H-006 /agents catalog with 5 role cards | `/agents` hit rate and per-slug click distribution | 0 | 14d after merge of v0 bundle | pending merge |
-| 5 | 2026-04-20 | #4 (draft, this tick) | H-007 Stripe pre-auth hire flow (v0 completion) | Stripe Checkout sessions created on `/api/agents/hire` | 0 | 14d after last-of-{#2,#3,#4} merges | pending merge — **< 5 pre-auths in window = kill workforce pivot** |
+| 3 | Homepage rewrite to "Your AI workforce, off the shelf" — new hero, 3-col feature section, Hermes/OpenClaw trust stack, Browse-agents CTA. Legacy skills surface demoted to footer link. | [#2](https://github.com/ryanfrigo/clawmart/pull/2) | H-005 | Homepage → `/agents` click-through rate (starts measuring once H-006 lands a real `/agents` page); secondary: homepage → `/skills` referrals should drop sharply. | 0 measurable clicks (prior page sent supply-side signups to `/sign-up`). | Tick 8 (5 ticks post-ship, per kill rule) | — |
 
+*(H-001 was superseded by the 2026-04-20 pivot and moved to graveyard.md.)*
+
+**Known landmine carried into tick 4:** `/agents` currently redirects back to `/` (legacy stub). This tick's Browse-agents CTAs land users in a redirect loop. H-006 must replace that stub with the real agent catalog before any real measurement is possible. Until then, the homepage change is visible but un-measurable.
