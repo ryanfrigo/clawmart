@@ -7,9 +7,9 @@ import { ConvexClientProvider } from "@/components/convex-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ClawMart — Pay-per-call APIs for AI agents",
+  title: "Clawmart — Hire AI agents for your workforce",
   description:
-    "The HTTP API your AI agent calls when it needs something done. Per-call USDC pricing on Base, settled via x402. No accounts, no keys, no monthly bills.",
+    "Pre-built AI employees — Executive Assistant, Sales SDR, Research, Content, DevOps — live in your Slack in minutes. $49–$149/mo each. 30-day free trial.",
   metadataBase: new URL("https://clawmart.co"),
   icons: {
     icon: "/favicon.svg",
@@ -17,16 +17,18 @@ export const metadata: Metadata = {
     apple: "/favicon.svg",
   },
   openGraph: {
-    title: "ClawMart — Pay-per-call APIs for AI agents",
-    description: "One HTTP endpoint your agent can call. Per-call USDC pricing, no keys. Powered by x402 on Base.",
+    title: "Clawmart — Hire AI agents for your workforce",
+    description:
+      "Your AI workforce, off the shelf. Pre-built agents, 30-day free trial, runs on serverless infra. Live in your Slack in minutes.",
     url: "https://clawmart.co",
-    siteName: "ClawMart",
+    siteName: "Clawmart",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "ClawMart — Pay-per-call APIs for AI agents",
-    description: "One HTTP endpoint your agent can call. Per-call USDC pricing, no keys. Powered by x402 on Base.",
+    title: "Clawmart — Hire AI agents for your workforce",
+    description:
+      "Your AI workforce, off the shelf. Pre-built agents, 30-day free trial. $49–$149/mo per role.",
   },
 };
 

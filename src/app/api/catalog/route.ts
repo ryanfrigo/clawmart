@@ -229,7 +229,7 @@ export async function GET(req: NextRequest) {
           links: {
             self: `${BASE_URL}/api/catalog`,
             marketplace: BASE_URL,
-            docs: `${BASE_URL}/docs/api`,
+            docs: `${BASE_URL}/docs`,
           },
           lastUpdated: new Date().toISOString(),
         },
