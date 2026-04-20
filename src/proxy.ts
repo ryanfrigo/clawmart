@@ -4,7 +4,14 @@ import type { NextRequest } from "next/server";
 import type { NextFetchEvent } from "next/server";
 
 const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
-const isClerkRoute = createRouteMatcher(["/dashboard(.*)", "/sign-in(.*)", "/sign-up(.*)"]);
+const isClerkRoute = createRouteMatcher([
+  "/dashboard(.*)",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+  "/api/agents/hire(.*)",
+  "/api/payments/(.*)",
+  "/api/stripe/(.*)",
+]);
 
 const clerkHandler = clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
