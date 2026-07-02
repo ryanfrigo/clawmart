@@ -56,3 +56,17 @@ Format:
   - MCP (97M installs) commoditizing agent-tool distribution before x402 does
   - Pivots tried in-session: skill marketplace → physical-actions bridge → MCP starter pack → agent runtime → **agent workforce marketplace** (current)
 - **What the failed thesis taught us:** The "Walmart for agents" brand only works if agents are the PRODUCT being sold, not the BUYER. Clawmart sells *agents* to humans building an AI workforce, not *skills* to agents. That's the pivot.
+
+---
+
+## Strategic kill #2: "hire pre-built AI agents" v0 (H-005, H-006, H-007)
+
+- **Killed on:** 2026-07-02 (human-directed relaunch session)
+- **Ran for:** 73 days live (2026-04-20 → 2026-07-02)
+- **Reason:** no-traction — with a caveat: distribution never fired
+- **Headline evidence:**
+  - 0 Stripe Checkout sessions, 0 customers, 0 subscriptions, 0 charges — ever (verified via Stripe API 2026-07-02)
+  - Prod Stripe was in TEST mode the whole time (`pk_test` in the live bundle) — the funnel could never take a real dollar
+  - Hire funnel required Clerk sign-in before checkout (401 for anonymous visitors)
+  - The 14-day kill window (<5 pre-auths) expired ~2026-05-04 with zero signal
+- **What we learned:** Zero distribution ⇒ zero signal — the thesis was never really tested, but the April research already showed no bootstrapped precedent for a solo generic "hire an AI agent" catalog against funded incumbents. Structural lesson: v0 shipped with three unreconciled pricing models on one site, a sign-in wall on the only money page, and no marketing anyone could fire. The 2026-07-02 relaunch (AI Visibility Fix Kit — see docs/RELAUNCH-SPEC.md) fixes all three: one SKU, guest checkout, launch assets prepared for the founder.
