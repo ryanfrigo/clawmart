@@ -16,6 +16,27 @@ export const join = mutation({
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
     if (!isValidEmail(email)) throw new ConvexError("invalid_email");
+
+    // Global flood guard: this endpoint is called directly from the browser
+    // (no server-side IP), so cap total inserts per hour to bound abuse. A new
+    // product won't legitimately exceed this; a script flood will.
+    const WINDOW_MS = 60 * 60 * 1000;
+    const MAX_PER_HOUR = 300;
+    const key = "waitlist-global";
+    const now = Date.now();
+    const rl = await ctx.db
+      .query("rateLimits")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .first();
+    if (!rl || now - rl.windowStart > WINDOW_MS) {
+      if (rl) await ctx.db.patch(rl._id, { windowStart: now, count: 1 });
+      else await ctx.db.insert("rateLimits", { key, windowStart: now, count: 1 });
+    } else if (rl.count >= MAX_PER_HOUR) {
+      throw new ConvexError("rate_limited");
+    } else {
+      await ctx.db.patch(rl._id, { count: rl.count + 1 });
+    }
+
     const existing = await ctx.db
       .query("waitlist")
       .withIndex("by_email", (q) => q.eq("email", email))

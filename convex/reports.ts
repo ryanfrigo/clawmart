@@ -17,6 +17,7 @@ import {
   query,
   internalMutation,
   internalQuery,
+  internalAction,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
@@ -27,7 +28,13 @@ import {
 } from "./lib/pure";
 
 const SAMPLES_PAGE_SIZE = 25;
-const STUCK_AFTER_MS = 45 * 60 * 1000;
+// Watchdog flags a report only when it has made NO progress for this long —
+// measured from the last chunk (or payment), not total elapsed, so a slow but
+// actively-advancing generation is never killed mid-run.
+const STALE_PROGRESS_MS = 20 * 60 * 1000;
+// A charged report stuck in pending_payment this long (webhook never landed)
+// gets reconciled against Stripe rather than lingering forever.
+const PENDING_RECONCILE_MS = 15 * 60 * 1000;
 
 function requireSharedSecret(provided: string): void {
   const expected = process.env.SERVER_SHARED_SECRET;
@@ -40,16 +47,42 @@ function requireSharedSecret(provided: string): void {
 // Public mutations (guarded by SERVER_SHARED_SECRET)
 // ---------------------------------------------------------------------------
 
+const CHECKOUT_WINDOW_MS = 60 * 60 * 1000;
+const MAX_CHECKOUTS_PER_IP_PER_HOUR = 12;
+
 export const createPending = mutation({
   args: {
     domain: v.string(),
     checkId: v.optional(v.id("checks")),
+    ipHash: v.optional(v.string()),
     secret: v.string(),
   },
   handler: async (ctx, args) => {
     requireSharedSecret(args.secret);
     const domain = normalizeDomain(args.domain);
     if (!domain) throw new ConvexError("invalid_domain");
+
+    // Throttle guest checkout so a curl loop can't create unbounded
+    // pending_payment rows + live Stripe sessions.
+    if (args.ipHash) {
+      const key = `checkout-ip:${args.ipHash}`;
+      const now = Date.now();
+      const existing = await ctx.db
+        .query("rateLimits")
+        .withIndex("by_key", (q) => q.eq("key", key))
+        .first();
+      if (!existing || now - existing.windowStart > CHECKOUT_WINDOW_MS) {
+        if (existing) {
+          await ctx.db.patch(existing._id, { windowStart: now, count: 1 });
+        } else {
+          await ctx.db.insert("rateLimits", { key, windowStart: now, count: 1 });
+        }
+      } else if (existing.count >= MAX_CHECKOUTS_PER_IP_PER_HOUR) {
+        throw new ConvexError("rate_limited");
+      } else {
+        await ctx.db.patch(existing._id, { count: existing.count + 1 });
+      }
+    }
 
     // Placeholders; the pipeline re-infers during generation if these are thin.
     let brandName = brandNameFromDomain(domain);
@@ -197,9 +230,11 @@ export const markPaid = internalMutation({
     if (report.stripeSessionId && report.stripeSessionId !== args.stripeSessionId) {
       return { transitioned: false };
     }
+    const nowPaid = Date.now();
     await ctx.db.patch(args.reportId, {
       status: "paid",
-      paidAt: Date.now(),
+      paidAt: nowPaid,
+      lastProgressAt: nowPaid,
       stripeSessionId: args.stripeSessionId,
       ...(args.email ? { email: args.email } : {}),
       ...(args.paymentIntentId
@@ -278,6 +313,7 @@ export const setGenerating = internalMutation({
       chunksTotal: args.chunksTotal,
       chunksDone: 0,
       attempts: 0,
+      lastProgressAt: Date.now(),
     });
     await ctx.scheduler.runAfter(0, internal.pipeline.processPrompt, {
       reportId: args.reportId,
@@ -325,7 +361,11 @@ export const recordChunk = internalMutation({
       });
     }
     const chunksDone = report.chunksDone + 1;
-    await ctx.db.patch(args.reportId, { chunksDone, attempts: 0 });
+    await ctx.db.patch(args.reportId, {
+      chunksDone,
+      attempts: 0,
+      lastProgressAt: now,
+    });
     if (chunksDone >= report.chunksTotal) {
       await ctx.scheduler.runAfter(0, internal.pipeline.finalize, {
         reportId: args.reportId,
@@ -352,6 +392,11 @@ export const bumpAttempts = internalMutation({
   },
 });
 
+/**
+ * The pipeline gave up on a PAID report. The customer was charged, so this
+ * always lands in refund_flagged (the human refund queue) — never "failed",
+ * which is reserved for reports that were never paid.
+ */
 export const markFailed = internalMutation({
   args: { reportId: v.id("reports"), error: v.string() },
   handler: async (ctx, args) => {
@@ -361,7 +406,7 @@ export const markFailed = internalMutation({
       return null;
     }
     await ctx.db.patch(args.reportId, {
-      status: "failed",
+      status: "refund_flagged",
       error: args.error.slice(0, 500),
     });
     return null;
@@ -387,25 +432,108 @@ export const complete = internalMutation({
 // Internal: watchdog cron (see crons.ts)
 // ---------------------------------------------------------------------------
 
-/** Reports stuck in paid/generating for >45 min get refund-flagged. */
+/**
+ * A paid/generating report that has made NO progress for STALE_PROGRESS_MS is
+ * genuinely stuck (crashed action, lost schedule) and gets refund-flagged. A
+ * slow-but-advancing run keeps bumping lastProgressAt and is left alone.
+ */
 export const watchdog = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const cutoff = Date.now() - STUCK_AFTER_MS;
+    const cutoff = Date.now() - STALE_PROGRESS_MS;
     for (const status of ["paid", "generating"] as const) {
       const rows = await ctx.db
         .query("reports")
         .withIndex("by_status", (q) => q.eq("status", status))
         .collect();
       for (const report of rows) {
-        const startedAt = report.paidAt ?? report.createdAt;
-        if (startedAt < cutoff) {
+        const lastProgress =
+          report.lastProgressAt ?? report.paidAt ?? report.createdAt;
+        if (lastProgress < cutoff) {
           await ctx.db.patch(report._id, {
             status: "refund_flagged",
             error:
               "Generation stalled — flagged for an automatic refund. No action needed on your side.",
           });
         }
+      }
+    }
+    return null;
+  },
+});
+
+/** Old pending_payment rows whose webhook may have been lost — to reconcile. */
+export const stalePending = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - PENDING_RECONCILE_MS;
+    const rows = await ctx.db
+      .query("reports")
+      .withIndex("by_status", (q) => q.eq("status", "pending_payment"))
+      .collect();
+    return rows
+      .filter((r) => r.createdAt < cutoff && r.stripeSessionId)
+      .map((r) => ({ reportId: r._id, stripeSessionId: r.stripeSessionId! }));
+  },
+});
+
+/** Terminal state for a pending report Stripe confirms was never paid. */
+export const expirePending = internalMutation({
+  args: { reportId: v.id("reports") },
+  handler: async (ctx, args) => {
+    const report = await ctx.db.get(args.reportId);
+    if (!report || report.status !== "pending_payment") return null;
+    await ctx.db.patch(args.reportId, {
+      status: "failed",
+      error: "payment_never_completed",
+    });
+    return null;
+  },
+});
+
+/**
+ * Reconcile pending_payment rows against Stripe — the backstop for a webhook
+ * that never arrived. Uses the Stripe REST API directly (raw fetch works in
+ * the Convex runtime; STRIPE_SECRET_KEY lives in Convex env for this).
+ * A confirmed-paid session is fulfilled via markPaid (idempotent); a confirmed-
+ * unpaid/expired session is retired. Anything ambiguous is left for the next
+ * pass (Stripe retries its own webhooks for ~3 days).
+ */
+export const reconcilePending = internalAction({
+  args: {},
+  handler: async (ctx): Promise<null> => {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return null; // reconciliation is opt-in; webhook is primary
+    const pending = await ctx.runQuery(internal.reports.stalePending, {});
+    for (const { reportId, stripeSessionId } of pending) {
+      let session: {
+        payment_status?: string;
+        status?: string;
+        customer_details?: { email?: string };
+        payment_intent?: string;
+      } | null = null;
+      try {
+        const res = await fetch(
+          `https://api.stripe.com/v1/checkout/sessions/${stripeSessionId}`,
+          { headers: { authorization: `Bearer ${key}` } }
+        );
+        if (res.ok) session = await res.json();
+      } catch {
+        continue; // transient — retry next pass
+      }
+      if (!session) continue;
+      if (session.payment_status === "paid") {
+        await ctx.runMutation(internal.reports.markPaid, {
+          reportId,
+          stripeSessionId,
+          email: session.customer_details?.email ?? undefined,
+          paymentIntentId:
+            typeof session.payment_intent === "string"
+              ? session.payment_intent
+              : undefined,
+        });
+      } else if (session.status === "expired") {
+        await ctx.runMutation(internal.reports.expirePending, { reportId });
       }
     }
     return null;

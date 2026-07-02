@@ -35,6 +35,7 @@ export default defineSchema({
     crawl: v.optional(v.any()), // CrawlResult (see lib/pure.ts types)
     chunksTotal: v.number(),
     chunksDone: v.number(),
+    lastProgressAt: v.optional(v.number()), // updated on paid + every chunk; watchdog uses this
     attempts: v.number(), // retry counter for the current chunk
     result: v.optional(v.any()), // ReportResult — scores, share-of-voice, fix kit artifacts
     error: v.optional(v.string()),

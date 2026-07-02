@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexError } from "convex/values";
 import type Stripe from "stripe";
@@ -6,6 +7,12 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { normalizeDomain } from "../../../../convex/lib/pure";
 import { getConvexClient } from "@/lib/convex-server";
 import { getStripe } from "@/lib/stripe";
+
+function ipHashFrom(request: NextRequest, secret: string): string {
+  const fwd = request.headers.get("x-forwarded-for") ?? "";
+  const ip = fwd.split(",")[0].trim() || "unknown";
+  return createHash("sha256").update(`${ip}:${secret}`).digest("hex");
+}
 
 /**
  * POST /api/checkout — start a $49 Fix Kit purchase (guest checkout).
@@ -54,6 +61,7 @@ export async function POST(request: NextRequest) {
     const pending = await convex.mutation(api.reports.createPending, {
       domain,
       ...(checkId ? { checkId: checkId as Id<"checks"> } : {}),
+      ipHash: ipHashFrom(request, secret),
       secret,
     });
     reportId = pending.reportId;
@@ -61,6 +69,9 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     if (err instanceof ConvexError && err.data === "invalid_domain") {
       return NextResponse.json({ error: "invalid_domain" }, { status: 400 });
+    }
+    if (err instanceof ConvexError && err.data === "rate_limited") {
+      return NextResponse.json({ error: "rate_limited" }, { status: 429 });
     }
     console.error("/api/checkout: createPending failed", err);
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
@@ -84,7 +95,9 @@ export async function POST(request: NextRequest) {
         },
       ],
       metadata: { reportId, token },
-      payment_intent_data: { statement_descriptor: "CLAWMART.CO" },
+      // Statement descriptor is set account-wide in the Stripe dashboard (see
+      // docs/FLIP-TO-LIVE.md) — the per-PaymentIntent field is rejected for
+      // card charges on modern API versions, so we don't set it here.
       success_url: `${appUrl}/report/${token}?paid=1`,
       cancel_url: `${appUrl}/?canceled=1`,
     });

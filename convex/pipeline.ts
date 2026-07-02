@@ -185,22 +185,26 @@ export const processPrompt = internalAction({
           run: r + 1,
         }))
       );
+      // Each of the 9 calls retries itself once on a transient error, so a
+      // single flaky call doesn't discard and re-bill the whole chunk.
       const settled = await Promise.allSettled(
         jobs.map((job) =>
-          llmComplete(ctx, {
-            model: job.model,
-            prompt: prompt.text,
-            maxTokens: 600,
-            mock: isMockMode()
-              ? {
-                  brandName: report.brandName,
-                  domain: report.domain,
-                  category: report.category,
-                  competitors: report.competitors,
-                  seed: `${report.domain}|${prompt.id}|${job.run}`,
-                }
-              : undefined,
-          })
+          callWithRetry(() =>
+            llmComplete(ctx, {
+              model: job.model,
+              prompt: prompt.text,
+              maxTokens: 600,
+              mock: isMockMode()
+                ? {
+                    brandName: report.brandName,
+                    domain: report.domain,
+                    category: report.category,
+                    competitors: report.competitors,
+                    seed: `${report.domain}|${prompt.id}|${job.run}`,
+                  }
+                : undefined,
+            })
+          )
         )
       );
       const firstFailure = settled.find(
@@ -430,6 +434,15 @@ async function generateFixKit(
 // ---------------------------------------------------------------------------
 // Retry helper + email
 // ---------------------------------------------------------------------------
+
+/** Retry a single LLM call once on a transient failure (mock never fails). */
+async function callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch {
+    return await fn();
+  }
+}
 
 async function retryOrFail(
   ctx: ActionCtx,

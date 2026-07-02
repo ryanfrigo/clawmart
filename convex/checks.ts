@@ -130,6 +130,10 @@ export const get = query({
 // Internal: cache, rate limits, row lifecycle
 // ---------------------------------------------------------------------------
 
+// A "running" row older than this is treated as crashed, not cached, so a
+// killed execute action can't brick a domain's free check for the full TTL.
+const RUNNING_STALE_MS = 3 * 60 * 1000;
+
 export const freshByDomain = internalQuery({
   args: { domain: v.string() },
   handler: async (ctx, args) => {
@@ -139,7 +143,14 @@ export const freshByDomain = internalQuery({
       .withIndex("by_domain", (q) => q.eq("domain", args.domain))
       .collect();
     const fresh = rows
-      .filter((r) => r.expiresAt > now && r.status !== "failed")
+      .filter((r) => {
+        if (r.expiresAt <= now || r.status === "failed") return false;
+        // Stale in-flight run (crashed action) — don't serve it as a cache hit.
+        if (r.status === "running" && now - r.createdAt > RUNNING_STALE_MS) {
+          return false;
+        }
+        return true;
+      })
       .sort((a, b) => b.createdAt - a.createdAt)[0];
     return fresh?._id ?? null;
   },

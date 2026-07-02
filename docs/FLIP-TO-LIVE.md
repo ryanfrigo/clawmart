@@ -91,9 +91,18 @@ npx convex env set DAILY_SPEND_LIMIT_USD 20 --prod
    npx convex env set STRIPE_WEBHOOK_SECRET whsec_... --prod
    ```
 4. **Statement descriptor**: Stripe Settings → Business → Public details →
-   statement descriptor = `CLAWMART.CO` (the checkout code also sets it
-   per-payment; the account-level value is the fallback shoppers' banks use).
-5. Confirm the 14-day refund policy wording is live on the checkout page
+   statement descriptor = `CLAWMART.CO`. This account-level value is what
+   shoppers' banks show — the checkout code intentionally does NOT set a
+   per-payment descriptor (modern Stripe rejects it for card charges).
+5. **Reconciliation backstop** (recommended): set the live secret key in
+   **Convex** prod too, so the 15-min reconcile cron can recover any purchase
+   whose webhook was lost:
+   ```sh
+   npx convex env set STRIPE_SECRET_KEY sk_live_... --prod
+   ```
+   Without it, reconciliation is a no-op and you rely solely on Stripe's own
+   webhook retries (which run for ~3 days) plus the watchdog.
+6. Confirm the 14-day refund policy wording is live on the checkout page
    (it ships with the site; just eyeball it).
 
 ## (c) Resend — optional email delivery

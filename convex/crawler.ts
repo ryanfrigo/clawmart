@@ -16,6 +16,7 @@
  */
 
 import dns from "node:dns/promises";
+import { Agent } from "undici";
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 import {
@@ -134,11 +135,19 @@ function safeErrorMessage(e: unknown): string {
 // SSRF-safe fetch (DNS check per hop, manual redirects, byte cap)
 // ---------------------------------------------------------------------------
 
-async function assertResolvesPublic(hostname: string): Promise<void> {
+/**
+ * Resolve a hostname, verify EVERY address is public, and return one vetted
+ * address. The caller pins this exact IP into the connection (below) so the
+ * TCP connect can't re-resolve to a different (private) address between the
+ * check and the fetch — closing the DNS-rebinding TOCTOU hole.
+ */
+async function resolveVettedIp(
+  hostname: string
+): Promise<{ address: string; family: number } | null> {
   const host = hostname.replace(/^\[|\]$/g, "");
-  // IP literal: isSafeUrl already vetted it.
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":")) return;
-  let addrs: Array<{ address: string }>;
+  // IP literal: isSafeUrl already vetted it; no rebinding is possible.
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":")) return null;
+  let addrs: Array<{ address: string; family: number }>;
   try {
     addrs = await dns.lookup(host, { all: true });
   } catch {
@@ -147,6 +156,18 @@ async function assertResolvesPublic(hostname: string): Promise<void> {
   if (!addrs.length || addrs.some((a) => isPrivateIp(a.address))) {
     throw new Error("unsafe_ip");
   }
+  return { address: addrs[0].address, family: addrs[0].family };
+}
+
+/** An undici dispatcher that connects only to the pre-vetted IP. */
+function pinnedDispatcher(pin: { address: string; family: number }): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_hostname, _opts, cb) => {
+        cb(null, pin.address, pin.family);
+      },
+    },
+  });
 }
 
 async function safeFetch(
@@ -157,7 +178,7 @@ async function safeFetch(
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (!isSafeUrl(current)) throw new Error("unsafe_url");
     const u = new URL(current);
-    await assertResolvesPublic(u.hostname);
+    const pin = await resolveVettedIp(u.hostname);
 
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
@@ -169,7 +190,9 @@ async function safeFetch(
           "user-agent": USER_AGENT,
           accept: "text/html,text/plain,*/*;q=0.8",
         },
-      });
+        // Pin the vetted IP so the connect can't rebind to a private address.
+        ...(pin ? { dispatcher: pinnedDispatcher(pin) } : {}),
+      } as RequestInit & { dispatcher?: Agent });
       if ([301, 302, 303, 307, 308].includes(res.status)) {
         const loc = res.headers.get("location");
         // Drain/cancel the redirect body before moving on.

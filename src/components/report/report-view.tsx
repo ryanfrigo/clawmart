@@ -154,8 +154,8 @@ export function ReportView({ token }: { token: string }) {
       );
     }
 
-    case "failed":
     case "refund_flagged":
+      // The customer paid and we couldn't deliver — a refund is owed.
       return (
         <StatusShell
           eyebrow={report.domain}
@@ -173,9 +173,37 @@ export function ReportView({ token }: { token: string }) {
             If you&apos;d rather we retry, or the refund doesn&apos;t show
             within a few business days, email{" "}
             <SupportLink
-              subject={`Failed report — ${report.domain} (${token.slice(0, 8)})`}
+              subject={`Refund — ${report.domain} (${token.slice(0, 8)})`}
             />
             .
+          </p>
+        </StatusShell>
+      );
+
+    case "failed":
+      // No successful charge (payment failed, expired, or never completed).
+      // Do NOT promise a refund — there is nothing to refund.
+      return (
+        <StatusShell
+          eyebrow={report.domain}
+          title="This order didn't go through."
+          tone="error"
+        >
+          <p>
+            We never received a completed payment for this report, so nothing
+            was charged. If you still want your AI Visibility Fix Kit, start a
+            fresh check from the{" "}
+            <Link href="/" className="text-lobster underline-offset-2 hover:underline">
+              homepage
+            </Link>
+            .
+          </p>
+          <p className="mt-3">
+            If you believe you <em>were</em> charged, email{" "}
+            <SupportLink
+              subject={`Charged but no report — ${report.domain} (${token.slice(0, 8)})`}
+            />{" "}
+            and we&apos;ll sort it out.
           </p>
         </StatusShell>
       );
