@@ -36,6 +36,10 @@ const HOW_STEPS = [
 
 const FAQ: Array<{ q: string; a: string }> = [
   {
+    q: "Can't I just ask ChatGPT this myself?",
+    a: "For generic advice, yes — and you should. But a chat window can't answer the actual question. A model has no reliable idea what it recommends, and no idea at all what Perplexity or Gemini say — ask \"do you recommend Acme?\" and it guesses or flatters you. We systematically sample the models with dozens of buyer-intent prompts, repeated, across three families, and count who actually gets named: you or your competitors. That's measured data you cannot self-generate by prompting. The paste-ready fixes are the bonus; the measurement is the point.",
+  },
+  {
     q: "How do you measure AI visibility?",
     a: "We query the AI models that power ChatGPT, Claude, and Perplexity through their APIs with buyer-intent prompts for your category, and count how often each answer mentions your brand versus competitors. Paid scores are mention rates with a 95% confidence interval — never a made-up 0–100 grade. The method, prompt set, and scoring formula are public on our methodology page.",
   },
@@ -137,10 +141,10 @@ export default function HomePage() {
             className="anim-rise mx-auto mt-6 max-w-2xl text-pretty text-[16px] leading-relaxed text-muted-foreground sm:text-[17px]"
             style={{ animationDelay: "160ms" }}
           >
-            Buyers now ask ChatGPT, Claude, and Perplexity what to use. We
-            query the AI models that power them — via their APIs — and measure
-            whether they mention you, or your competitors. Then we ship the
-            fixes, not just a score.
+            Buyers now ask ChatGPT, Claude, and Perplexity what to use — and no
+            model can tell you what it, or the others, actually recommend. So we
+            sample them directly, at scale, and measure whether they name you or
+            your competitors. Then we ship the fixes, not just a score.
           </p>
           <div className="anim-rise mt-10" style={{ animationDelay: "240ms" }}>
             <FreeCheck />
