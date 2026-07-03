@@ -1,10 +1,10 @@
 import { MetadataRoute } from "next";
 
 /**
- * We sell AI visibility, so AI crawlers are explicitly welcome on the
- * public pages. Private tokened reports are excluded for everyone.
+ * Public pages are open to everyone, including AI answer engines — we want
+ * packs to be discoverable. Private tokened download pages are excluded.
  */
-const DISALLOW = ["/report/", "/api/"];
+const DISALLOW = ["/purchase/", "/api/"];
 
 export default function robots(): MetadataRoute.Robots {
   return {

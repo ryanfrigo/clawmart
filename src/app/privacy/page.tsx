@@ -33,43 +33,44 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <P>
-        Short version: we collect the minimum needed to run checks, deliver
-        reports, and prevent abuse. No ad trackers, no selling data, no
+        Short version: we collect the minimum needed to sell you a pack, deliver
+        the download, and prevent abuse. No ad trackers, no selling data, no
         marketing email you didn&apos;t explicitly ask for.
       </P>
 
       <H2>What we collect, and why</H2>
       <ul className="mt-4 list-disc space-y-2.5 pl-5 text-[14.5px] leading-relaxed text-muted-foreground">
         <li>
-          <strong className="text-foreground">Domains you check.</strong>{" "}
-          Stored with the check results (cached 24 hours) and, for purchases,
-          with your report.
+          <strong className="text-foreground">Nothing to browse.</strong> You can
+          read the whole site and view every pack without giving us anything —
+          no account, no signup.
+        </li>
+        <li>
+          <strong className="text-foreground">Your email, only if you buy or
+          join the waitlist.</strong> Checkout is guest-only; Stripe collects your
+          email at payment and we use it solely to deliver your download link
+          (transactional email only). Waitlist emails are used solely to tell you
+          when a new pack ships.
         </li>
         <li>
           <strong className="text-foreground">A hashed IP address</strong> when
-          you run a free check — used only for rate limiting. We store the
-          hash, not the address.
+          you start a checkout — used only for rate limiting. We store the hash,
+          not the address.
         </li>
         <li>
-          <strong className="text-foreground">Your email, only if you buy
-          or join the waitlist.</strong> Checkout is guest-only; Stripe
-          collects your email at payment and we use it solely to deliver your
-          report link (transactional email only). Waitlist emails are used
-          solely for the one thing you signed up to hear about.
-        </li>
-        <li>
-          <strong className="text-foreground">Payment details never touch
-          our servers</strong> — Stripe processes the card end to end. We store
-          a Stripe session/payment reference so we can honor refunds.
+          <strong className="text-foreground">Payment details never touch our
+          servers</strong> — Stripe processes the card end to end. We store a
+          Stripe session/payment reference and the pack you bought so we can
+          deliver the download and honor refunds.
         </li>
       </ul>
 
       <H2>What we don&apos;t do</H2>
       <P>
-        No advertising trackers or third-party analytics cookies. No selling
-        or renting data. No adding you to a newsletter because you bought
-        something. Prompts sent to AI models contain your domain, brand, and
-        category — never your email or payment details.
+        No advertising trackers or third-party analytics cookies. No selling or
+        renting data. No adding you to a newsletter because you bought something.
+        We don&apos;t receive or store what your OpenClaw assistant does with a
+        pack — the skills run entirely on your own machine.
       </P>
 
       <H2>Who processes data for us</H2>
@@ -80,46 +81,36 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong className="text-foreground">Convex</strong> — our database
-          (reports, checks, waitlist).
+          (purchases, waitlist).
         </li>
         <li>
-          <strong className="text-foreground">Vercel</strong> — hosting and the
-          AI gateway that routes model calls.
-        </li>
-        <li>
-          <strong className="text-foreground">AI model providers</strong>{" "}
-          (OpenAI, Anthropic, Perplexity via the gateway) — receive the
-          category prompts and your public site text, as described in the{" "}
-          <Link href="/methodology" className="underline underline-offset-4 hover:text-foreground">
-            methodology
-          </Link>
-          .
+          <strong className="text-foreground">Vercel</strong> — hosting.
         </li>
         <li>
           <strong className="text-foreground">Resend</strong> — sends the
-          report-delivery email, if email delivery is enabled.
+          download-delivery email, if email delivery is enabled.
         </li>
       </ul>
 
       <H2>Retention and deletion</H2>
       <P>
-        Reports are kept so your tokened link keeps working — that&apos;s the
-        product. Free-check rows expire from cache after 24 hours but may be
-        retained for abuse prevention and aggregate funnel stats. Want your
-        report, email, or waitlist entry deleted? Email{" "}
+        We keep your purchase record so your tokened download link keeps working —
+        that&apos;s the product. Want your purchase record, email, or waitlist
+        entry deleted? Email{" "}
         <a
           href={`mailto:${SUPPORT_EMAIL}?subject=Data%20deletion`}
           className="text-lobster underline underline-offset-4"
         >
           {SUPPORT_EMAIL}
         </a>{" "}
-        from the relevant address and we&apos;ll delete it within 30 days.
+        from the relevant address and we&apos;ll delete it within 30 days (note
+        that deleting a purchase record disables its download link).
       </P>
 
       <H2>Changes</H2>
       <P>
-        If this policy changes materially, the effective date above changes
-        with it. We won&apos;t quietly weaken it.
+        If this policy changes materially, the effective date above changes with
+        it. We won&apos;t quietly weaken it.
       </P>
 
       <p className="mt-12 border-t border-border pt-6 text-[12.5px] leading-relaxed text-muted-foreground">

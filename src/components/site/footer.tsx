@@ -1,27 +1,32 @@
 import Link from "next/link";
 import { ClawMark, Wordmark } from "@/components/site/logo";
-import { NON_AFFILIATION, SUPPORT_EMAIL } from "@/components/site/constants";
+import {
+  NON_AFFILIATION,
+  OPENCLAW_URL,
+  SUPPORT_EMAIL,
+} from "@/components/site/constants";
 
-const columns: Array<{ heading: string; links: Array<{ label: string; href: string }> }> = [
+const columns: Array<{ heading: string; links: Array<{ label: string; href: string; external?: boolean }> }> = [
   {
-    heading: "Product",
+    heading: "Store",
     links: [
-      { label: "Free visibility check", href: "/#check" },
-      { label: "Fix Kit — $49", href: "/#pricing" },
-      { label: "Methodology", href: "/methodology" },
+      { label: "All packs", href: "/packs" },
+      { label: "All-Access — $99", href: "/packs#all-access" },
+      { label: "About", href: "/about" },
       { label: "FAQ", href: "/#faq" },
     ],
+  },
+  {
+    heading: "OpenClaw",
+    links: [{ label: "openclaw/openclaw", href: OPENCLAW_URL, external: true }],
   },
   {
     heading: "Legal",
     links: [
       { label: "Terms", href: "/terms" },
       { label: "Privacy", href: "/privacy" },
+      { label: SUPPORT_EMAIL, href: `mailto:${SUPPORT_EMAIL}` },
     ],
-  },
-  {
-    heading: "Contact",
-    links: [{ label: SUPPORT_EMAIL, href: `mailto:${SUPPORT_EMAIL}` }],
   },
 ];
 
@@ -36,9 +41,9 @@ export function SiteFooter() {
               <Wordmark />
             </div>
             <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-              We measure how the AI models that power ChatGPT, Claude, and
-              Perplexity answer buyer questions in your category — then ship
-              the fixes, not just a score.
+              Premium, curated skill packs for OpenClaw — the self-hosted
+              personal AI assistant. Buy a pack, drop it into your skills
+              folder, and your assistant can do the job.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-10 sm:grid-cols-3">
@@ -50,12 +55,23 @@ export function SiteFooter() {
                 <ul className="mt-3 space-y-2">
                   {col.links.map((l) => (
                     <li key={l.href}>
-                      <Link
-                        href={l.href}
-                        className="text-[13px] text-foreground/80 transition-colors hover:text-foreground"
-                      >
-                        {l.label}
-                      </Link>
+                      {l.external ? (
+                        <a
+                          href={l.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[13px] text-foreground/80 transition-colors hover:text-foreground"
+                        >
+                          {l.label}
+                        </a>
+                      ) : (
+                        <Link
+                          href={l.href}
+                          className="text-[13px] text-foreground/80 transition-colors hover:text-foreground"
+                        >
+                          {l.label}
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -65,8 +81,8 @@ export function SiteFooter() {
         </div>
         <div className="mt-12 border-t border-border pt-6">
           <p className="text-[12px] leading-relaxed text-muted-foreground">
-            {NON_AFFILIATION} Model names are used nominatively to describe
-            what we measure.
+            {NON_AFFILIATION} &ldquo;OpenClaw&rdquo; is used nominatively to
+            describe the assistant these packs are built for.
           </p>
           <p className="mt-2 text-[12px] text-muted-foreground">
             © {new Date().getFullYear()} Clawmart 🦞

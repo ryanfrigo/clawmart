@@ -26,29 +26,29 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://clawmart.co"),
   title: {
-    default: "Clawmart — Is your brand invisible to AI?",
+    default: "Clawmart — Premium skill packs for OpenClaw",
     template: "%s · Clawmart",
   },
   description:
-    "Free check of how the AI models that power ChatGPT, Claude, and Perplexity answer buyer questions in your category — plus a $49 Fix Kit with ready-to-paste schema, answer copy, and AI-crawler config.",
+    "Curated, ready-to-run skill packs for OpenClaw, the self-hosted personal AI assistant. Buy a pack, drop it into ~/.openclaw/skills, start a new session. 14-day refund.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
     apple: "/favicon.svg",
   },
   openGraph: {
-    title: "Clawmart — Is your brand invisible to AI?",
+    title: "Clawmart — Premium skill packs for OpenClaw",
     description:
-      "We query the AI models that power ChatGPT, Claude, and Perplexity via their APIs and measure whether they mention your brand. Free check, no signup. $49 Fix Kit ships the actual fixes.",
+      "Make your OpenClaw assistant actually do the job. Curated packs of skills built to the AgentSkills spec, with a setup guide. Buy, download, install. 14-day refund.",
     url: "https://clawmart.co",
     siteName: "Clawmart",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clawmart — Is your brand invisible to AI?",
+    title: "Clawmart — Premium skill packs for OpenClaw",
     description:
-      "Free AI visibility check for your domain. The $49 Fix Kit ships ready-to-paste JSON-LD, answer copy, and crawler config — with full transcripts as evidence.",
+      "Curated, ready-to-run skill packs for OpenClaw. Buy a pack, drop it into your skills folder, start a new session. 14-day refund.",
   },
 };
 

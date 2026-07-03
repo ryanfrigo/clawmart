@@ -1,45 +1,43 @@
-import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexError } from "convex/values";
 import type Stripe from "stripe";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
-import { normalizeDomain } from "../../../../convex/lib/pure";
+import { isBundle, priceForSlug, titleForSlug } from "@/lib/packs";
+import { ipFromHeaders, ipHash } from "@/lib/request-ip";
 import { getConvexClient } from "@/lib/convex-server";
 import { getStripe } from "@/lib/stripe";
 
-function ipHashFrom(request: NextRequest, secret: string): string {
-  const fwd = request.headers.get("x-forwarded-for") ?? "";
-  const ip = fwd.split(",")[0].trim() || "unknown";
-  return createHash("sha256").update(`${ip}:${secret}`).digest("hex");
-}
-
 /**
- * POST /api/checkout — start a $49 Fix Kit purchase (guest checkout).
+ * POST /api/checkout — start a pack (or All-Access bundle) purchase.
  *
- * Body: { domain: string, checkId?: Id<"checks"> }
- * 200 { url }  — Stripe Checkout URL to redirect to
- * 400 { error: "invalid_domain" }
- * 502 { error: "checkout_unavailable" }  — Stripe error (safe message only)
+ * Body: { slug: string }
+ * 200 { url }                       — Stripe Checkout URL to redirect to
+ * 400 { error: "invalid_slug" }     — slug isn't a known pack or the bundle
+ * 429 { error: "rate_limited" }     — per-IP rate limit tripped in Convex
+ * 502 { error: "checkout_unavailable" } — Stripe error (safe message only)
  *
- * Order matters (per docs/BUILD-CONTRACT.md): the report doc is pre-created
- * BEFORE the Stripe session so the webhook can always resolve
- * metadata.reportId; the session id is attached right after creation.
+ * Order (per docs/PACKS-BUILD-CONTRACT.md): the purchase row (pending_payment)
+ * is created BEFORE the Stripe session so the webhook can always resolve
+ * metadata.purchaseId; the session id is attached right after creation.
+ *
+ * Price + title come from src/lib/packs.ts (the source of truth) — the client
+ * only sends `slug`, so the charged amount can't be tampered with. Convex
+ * re-validates amountUsd against the allowed set as a second guard.
  */
 export async function POST(request: NextRequest) {
-  let rawDomain = "";
-  let checkId: string | undefined;
+  let slug = "";
   try {
     const body = await request.json();
-    rawDomain = typeof body?.domain === "string" ? body.domain : "";
-    checkId = typeof body?.checkId === "string" ? body.checkId : undefined;
+    slug = typeof body?.slug === "string" ? body.slug.trim() : "";
   } catch {
-    // fall through to invalid_domain
+    // fall through to invalid_slug
   }
 
-  const domain = normalizeDomain(rawDomain);
-  if (!domain) {
-    return NextResponse.json({ error: "invalid_domain" }, { status: 400 });
+  const amountUsd = priceForSlug(slug);
+  const title = titleForSlug(slug);
+  if (amountUsd === null || title === null) {
+    return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
   }
 
   const secret = process.env.SERVER_SHARED_SECRET;
@@ -54,22 +52,20 @@ export async function POST(request: NextRequest) {
 
   const convex = getConvexClient();
 
-  // 1. Pre-create the report (status pending_payment) and get its token.
-  let reportId: Id<"reports">;
+  // 1. Pre-create the purchase (status pending_payment) and get its token.
+  let purchaseId: Id<"purchases">;
   let token: string;
   try {
-    const pending = await convex.mutation(api.reports.createPending, {
-      domain,
-      ...(checkId ? { checkId: checkId as Id<"checks"> } : {}),
-      ipHash: ipHashFrom(request, secret),
+    const pending = await convex.mutation(api.purchases.createPending, {
+      slug,
+      amountUsd,
+      title,
+      ipHash: ipHash(ipFromHeaders(request.headers), secret),
       secret,
     });
-    reportId = pending.reportId;
+    purchaseId = pending.purchaseId;
     token = pending.token;
   } catch (err) {
-    if (err instanceof ConvexError && err.data === "invalid_domain") {
-      return NextResponse.json({ error: "invalid_domain" }, { status: 400 });
-    }
     if (err instanceof ConvexError && err.data === "rate_limited") {
       return NextResponse.json({ error: "rate_limited" }, { status: 429 });
     }
@@ -78,6 +74,12 @@ export async function POST(request: NextRequest) {
   }
 
   // 2. Create the Stripe Checkout Session (exact shape per build contract).
+  // A canceled bundle checkout returns to the pricing section; a canceled pack
+  // checkout returns to that pack's detail page.
+  const cancelUrl = isBundle(slug)
+    ? `${appUrl}/#pricing`
+    : `${appUrl}/packs/${slug}?canceled=1`;
+
   let session: Stripe.Checkout.Session;
   try {
     session = await getStripe().checkout.sessions.create({
@@ -88,18 +90,18 @@ export async function POST(request: NextRequest) {
         {
           price_data: {
             currency: "usd",
-            product_data: { name: `AI Visibility Fix Kit — ${domain}` },
-            unit_amount: 4900,
+            product_data: { name: title },
+            unit_amount: amountUsd * 100,
           },
           quantity: 1,
         },
       ],
-      metadata: { reportId, token },
+      metadata: { purchaseId, token },
       // Statement descriptor is set account-wide in the Stripe dashboard (see
       // docs/FLIP-TO-LIVE.md) — the per-PaymentIntent field is rejected for
       // card charges on modern API versions, so we don't set it here.
-      success_url: `${appUrl}/report/${token}?paid=1`,
-      cancel_url: `${appUrl}/?canceled=1`,
+      success_url: `${appUrl}/purchase/${token}?paid=1`,
+      cancel_url: cancelUrl,
     });
   } catch (err) {
     // Never surface raw Stripe errors to the client.
@@ -119,10 +121,10 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Attach the session id for webhook idempotency. If this fails we still
-  // return the URL — fulfillment resolves the report via metadata.reportId.
+  // return the URL — fulfillment resolves the purchase via metadata.purchaseId.
   try {
-    await convex.mutation(api.reports.attachStripeSession, {
-      reportId,
+    await convex.mutation(api.purchases.attachStripeSession, {
+      purchaseId,
       stripeSessionId: session.id,
       secret,
     });

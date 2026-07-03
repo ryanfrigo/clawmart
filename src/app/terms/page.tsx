@@ -5,7 +5,7 @@ import { NON_AFFILIATION, SUPPORT_EMAIL } from "@/components/site/constants";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "Clawmart's terms, in plain language: what you're buying, the 14-day refund, what we can and can't promise.",
+    "Clawmart's terms, in plain language: what a pack is, the 14-day refund, and what we can and can't promise.",
   alternates: { canonical: "/terms" },
 };
 
@@ -34,77 +34,76 @@ export default function TermsPage() {
       </h1>
       <P>
         Plain language, because you should be able to read the whole thing.
-        “Clawmart”, “we”, and “us” mean the operator of clawmart.co. By using
-        the site or buying a Fix Kit you agree to these terms.
+        &ldquo;Clawmart&rdquo;, &ldquo;we&rdquo;, and &ldquo;us&rdquo; mean the
+        operator of clawmart.co. By using the site or buying a pack you agree to
+        these terms.
       </P>
 
       <H2>What the service is</H2>
       <P>
-        Clawmart measures how AI models — the ones that power ChatGPT, Claude,
-        and Perplexity, queried via their APIs — answer buyer-intent questions
-        in your category, and whether they mention your brand. The free check
-        returns a visibility tier. The paid AI Visibility Fix Kit ($49,
-        one-time, per domain) returns mention scores with uncertainty bands,
-        share-of-voice data, ready-to-paste fix artifacts, and full
-        transcripts, delivered as a web report at a private tokened URL.
+        Clawmart sells curated skill packs for OpenClaw, the self-hosted
+        personal AI assistant. A pack is a set of skill files (SKILL.md, built to
+        the OpenClaw AgentSkills spec) plus a setup guide, delivered as a
+        downloadable zip. A purchase is a one-time payment for a pack (or the
+        All-Access bundle); after payment you get a gated download at a private,
+        unguessable URL. Nothing runs on our servers on your behalf — you install
+        and run the skills in your own OpenClaw.
       </P>
 
       <H2>What we don&apos;t promise</H2>
       <P>
-        We do not promise that any fix will cause any model or AI product to
-        mention, recommend, or cite your brand. The fixes are designed to make
-        your pages easier for AI crawlers and answer engines to cite; AI
-        visibility optimization is a young field and evidence for these
-        practices is emerging, not proven. Our measurements estimate model
-        behavior via provider APIs — they are not recordings of any real
-        user&apos;s session, and answers in consumer apps can differ.
+        Packs are curated instruction bundles you adapt to your own stack. We
+        don&apos;t promise any specific result, and the skills are not tested
+        against your exact environment or connected tools. Skills that reference
+        email, a calendar, a store, or other services assume you&apos;ve
+        configured those in OpenClaw yourself, as each pack&apos;s README
+        describes.
       </P>
 
       <H2>Payment and refunds</H2>
       <P>
         Payment is handled by Stripe as a guest checkout — no account needed.
-        The charge appears as CLAWMART.CO. Every Fix Kit carries a 14-day,
-        no-questions refund: reply to your receipt or email{" "}
+        Every pack carries a 14-day, no-questions refund: reply to your receipt
+        or email{" "}
         <a
           href={`mailto:${SUPPORT_EMAIL}`}
           className="text-lobster underline underline-offset-4"
         >
           {SUPPORT_EMAIL}
         </a>
-        . If report generation fails, or your report hasn&apos;t been delivered
-        within 24 hours of payment, we flag the purchase for an automatic
-        refund without you having to ask.
+        . If your download ever fails to work, tell us and we&apos;ll fix it or
+        refund you.
       </P>
 
       <H2>Your responsibilities</H2>
       <P>
-        Run checks and buy kits only for domains you own, work on, or are
-        otherwise authorized to analyze. Don&apos;t use the service to abuse
-        rate limits, probe other people&apos;s infrastructure, or resell
-        reports wholesale as your own product without adding your own work.
+        Use the packs for your own OpenClaw setups. You may read, edit, and adapt
+        the skill files freely. Don&apos;t redistribute or resell a pack wholesale
+        as your own product without adding your own substantial work, and
+        don&apos;t abuse the checkout or download endpoints.
       </P>
 
-      <H2>The report URL</H2>
+      <H2>The download URL</H2>
       <P>
-        Reports live at an unguessable tokened URL and are excluded from
-        search indexing. Anyone you give the link to can read the report —
-        treat it like a private document. We can rotate a token on request.
+        Your purchase lives at an unguessable tokened URL that is excluded from
+        search indexing. Anyone you give the link to can download the pack — treat
+        it like a private document. We can rotate a token on request.
       </P>
 
       <H2>Liability</H2>
       <P>
-        To the maximum extent permitted by law, our total liability for any
-        claim related to the service is capped at the amount you paid us in
-        the 12 months before the claim (for most customers, $49). The service
-        is provided “as is”; we work hard to keep it accurate and available
-        but don&apos;t warrant uninterrupted operation.
+        To the maximum extent permitted by law, our total liability for any claim
+        related to the service is capped at the amount you paid us in the 12
+        months before the claim. The service and the packs are provided &ldquo;as
+        is&rdquo;; we work hard to keep them useful and available but don&apos;t
+        warrant uninterrupted operation or fitness for a particular purpose.
       </P>
 
       <H2>Changes</H2>
       <P>
         We may update these terms; material changes will be reflected by the
-        effective date at the top. Continued use after a change means you
-        accept the new terms.
+        effective date at the top. Continued use after a change means you accept
+        the new terms.
       </P>
 
       <p className="mt-12 border-t border-border pt-6 text-[12.5px] leading-relaxed text-muted-foreground">
@@ -113,8 +112,8 @@ export default function TermsPage() {
           privacy policy
         </Link>{" "}
         and{" "}
-        <Link href="/methodology" className="underline underline-offset-4 hover:text-foreground">
-          methodology
+        <Link href="/about" className="underline underline-offset-4 hover:text-foreground">
+          about page
         </Link>
         .
       </p>

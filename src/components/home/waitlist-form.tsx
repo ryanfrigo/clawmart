@@ -12,7 +12,7 @@ export function WaitlistForm({
   source,
   domain,
 }: {
-  source: "home" | "check" | "report";
+  source: "home" | "packs" | "purchase";
   domain?: string;
 }) {
   const join = useMutation(api.waitlist.join);
@@ -53,7 +53,7 @@ export function WaitlistForm({
           if (state === "error") setState("idle");
         }}
         placeholder="you@company.com"
-        aria-label="Email for the monthly fix drops waitlist"
+        aria-label="Email for the new-packs waitlist"
         aria-invalid={state === "error"}
         className="h-10"
       />

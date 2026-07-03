@@ -1,16 +1,16 @@
 /**
- * "Monthly fix drops" waitlist — validates the recurring SKU before we build
- * it (spec: build only after >=25 signups or >=10 kit sales).
+ * "New packs" waitlist — validates demand for future packs before we build
+ * them. Called directly from the browser, so it carries its own flood guard.
  */
 
 import { v, ConvexError } from "convex/values";
 import { mutation } from "./_generated/server";
-import { isValidEmail, normalizeDomain } from "./lib/pure";
+import { isValidEmail } from "./lib/pure";
 
 export const join = mutation({
   args: {
     email: v.string(),
-    source: v.string(), // "report" | "check" | "home"
+    source: v.string(), // e.g. "home" | "packs" | "purchase"
     domain: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -42,7 +42,7 @@ export const join = mutation({
       .withIndex("by_email", (q) => q.eq("email", email))
       .first();
     if (!existing) {
-      const domain = args.domain ? normalizeDomain(args.domain) : null;
+      const domain = args.domain?.trim().toLowerCase();
       await ctx.db.insert("waitlist", {
         email,
         source: args.source.slice(0, 32),

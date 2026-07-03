@@ -1,0 +1,50 @@
+{
+  "chiefOfStaff": {
+    "timezone": "America/New_York",
+
+    "delivery": {
+      "channel": "openclaw",
+      "note": "Where briefs/wraps are sent. 'openclaw' replies inline; or set to a private Slack DM / iMessage handle you control. Never a shared room."
+    },
+
+    "inboxTriage": {
+      "vipSenders": ["sarah@acme.com", "investors@yourfund.com", "yourboss@company.com"],
+      "toneSamples": ["paste 1-3 of your own real sent emails here so drafts match your voice"],
+      "autoArchiveIgnore": false,
+      "lookbackHours": 48
+    },
+
+    "calendarGuard": {
+      "workingHours": { "start": "09:00", "end": "18:00" },
+      "bufferMinutes": 10,
+      "maxMeetingHours": 5,
+      "lunch": { "start": "12:30", "end": "13:00" },
+      "focusBlockTarget": { "count": 2, "durationHours": 2 },
+      "peakHours": { "start": "09:00", "end": "11:00" },
+      "vipAttendees": ["board@company.com"],
+      "autoHoldFocus": false
+    },
+
+    "dailyBrief": {
+      "maxNeedsYou": 5,
+      "includeWeather": false
+    },
+
+    "taskCapture": {
+      "defaultTool": "things",
+      "routingRules": [
+        { "match": "sender:legal@company.com", "list": "Legal" },
+        { "match": "keyword:invoice", "list": "Finance" }
+      ]
+    },
+
+    "meetingPrep": {
+      "externalOnly": true,
+      "prepThresholdMinutes": 20
+    },
+
+    "endOfDay": {
+      "autoRollForward": false
+    }
+  }
+}

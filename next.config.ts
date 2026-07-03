@@ -1,13 +1,17 @@
 import type { NextConfig } from "next";
 
-/** Routes from the pre-relaunch product — everything redirects home. */
+/** Routes from the pre-relaunch products — everything redirects home. */
 const DEAD_ROUTES = [
-  "/skills/:path*",
-  "/docs/:path*",
-  "/credits/:path*",
+  "/report/:path*",
+  "/methodology",
   "/agents/:path*",
+  "/skills",
+  "/skills/:path*",
+  "/credits",
+  "/credits/:path*",
   "/categories/:path*",
   "/dashboard/:path*",
+  "/docs/:path*",
   "/onboard/:path*",
   "/admin/:path*",
   "/sign-in/:path*",
@@ -25,9 +29,9 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Belt-and-suspenders with the page metadata: private tokened reports
-        // must never be indexed.
-        source: "/report/:path*",
+        // Belt-and-suspenders with the page metadata: private tokened download
+        // pages must never be indexed.
+        source: "/purchase/:path*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
       },
     ];

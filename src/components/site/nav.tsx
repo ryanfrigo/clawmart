@@ -14,22 +14,28 @@ export function SiteNav() {
         </Link>
         <div className="flex items-center gap-1 sm:gap-2">
           <Link
-            href="/methodology"
+            href="/packs"
             className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
           >
-            Methodology
+            Packs
           </Link>
           <Link
-            href="/#pricing"
+            href="/packs#all-access"
             className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
           >
             Pricing
           </Link>
           <Link
-            href="/#check"
+            href="/about"
+            className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            About
+          </Link>
+          <Link
+            href="/packs"
             className="ml-1 inline-flex h-8 items-center rounded-lg bg-primary px-3.5 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Free check
+            Browse packs
           </Link>
         </div>
       </nav>

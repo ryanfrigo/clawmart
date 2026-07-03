@@ -1,0 +1,17 @@
+{
+  "_comment": "Copy to ~/.openclaw/ecom-ops/config.json and fill in. The Shopify token is NOT stored here — set SHOPIFY_ADMIN_TOKEN in your environment (see README).",
+  "store": "mystore",
+  "apiVersion": "2024-10",
+  "primaryLocationId": 1234567890,
+  "leadTimeDaysDefault": 21,
+  "safetyDaysDefault": 10,
+  "lowStockThresholds": {
+    "default": 15,
+    "HERO-KIT": 40,
+    "CBL-USBC": 30
+  },
+  "reviewDelayDays": 5,
+  "reviewPlatform": "judgeme",
+  "alertChannel": "slack:#store-ops",
+  "refundPolicy": "30-day returns on unworn/unused items. Buyer pays return shipping. No restocking fee on apparel; 15% restocking fee on opened electronics. Original shipping is non-refundable unless the item was defective or we shipped the wrong thing (then we refund shipping and waive fees). Final-sale items are not returnable."
+}

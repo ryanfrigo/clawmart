@@ -1,0 +1,36 @@
+{
+  "_comment": "Starting config sketch for the AI SDR Pack. Adapt names/keys to your OpenClaw setup — this is illustrative, not a schema you must copy verbatim. Never commit real secrets; use env vars.",
+  "channels": {
+    "email": {
+      "_comment": "Sender the cold opens go out from. Prefer a warmed, secondary domain for volume. Keep READ access so reply-triage can see replies and stop cadences.",
+      "provider": "gmail",
+      "sendFrom": "outbound@your-secondary-domain.com",
+      "readInbox": true
+    }
+  },
+  "calendar": {
+    "_comment": "Required for meeting-booker. Needs write access to create events.",
+    "provider": "google",
+    "defaultConferencing": "google-meet",
+    "bufferMinutes": 15,
+    "workingHours": "09:00-17:00",
+    "timezone": "America/New_York"
+  },
+  "tools": {
+    "webSearch": {
+      "_comment": "Required for prospect-research. Any search backend OpenClaw supports.",
+      "enabled": true
+    },
+    "enrichment": {
+      "_comment": "Optional. Firmographics + verified emails. Leave disabled to work from public web only. Put the key in an env var, not here.",
+      "provider": "apollo",
+      "apiKeyEnv": "APOLLO_API_KEY",
+      "enabled": false
+    }
+  },
+  "pipeline": {
+    "_comment": "Where the shared deal log lives. File is the zero-config default; swap for a Sheet/Airtable/CRM if you have one.",
+    "store": "file",
+    "path": "./pipeline.json"
+  }
+}
