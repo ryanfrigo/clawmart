@@ -163,8 +163,10 @@ async function resolveVettedIp(
 function pinnedDispatcher(pin: { address: string; family: number }): Agent {
   return new Agent({
     connect: {
+      // undici's connector expects the dns.lookup(all:true) shape:
+      // callback(err, [{ address, family }]) — NOT the net-style (err, addr, family).
       lookup: (_hostname, _opts, cb) => {
-        cb(null, pin.address, pin.family);
+        cb(null, [{ address: pin.address, family: pin.family }]);
       },
     },
   });

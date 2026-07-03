@@ -118,6 +118,31 @@ export async function llmComplete(
   return liveComplete(opts.model, opts.prompt, opts.maxTokens ?? 600);
 }
 
+// Global concurrency gate: the AI Gateway rate-limits bursts (hard on the free
+// tier, softer on paid), so we never fire more than this many calls at once.
+// Everything above the cap queues. Tunable via GATEWAY_CONCURRENCY.
+const MAX_CONCURRENCY = Number(process.env.GATEWAY_CONCURRENCY ?? "2");
+let inFlight = 0;
+const waiters: Array<() => void> = [];
+async function acquire(): Promise<void> {
+  if (inFlight < MAX_CONCURRENCY) {
+    inFlight++;
+    return;
+  }
+  await new Promise<void>((resolve) => waiters.push(resolve));
+  inFlight++;
+}
+function release(): void {
+  inFlight--;
+  waiters.shift()?.();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+const MAX_LLM_RETRIES = 4;
+
 async function liveComplete(
   model: ModelSpec,
   prompt: string,
@@ -125,6 +150,40 @@ async function liveComplete(
 ): Promise<LlmResult> {
   const key = process.env.AI_GATEWAY_API_KEY;
   if (!key) throw new Error("llm_no_api_key");
+  await acquire();
+  try {
+    let lastErr: Error = new Error("llm_unknown");
+    for (let attempt = 0; attempt <= MAX_LLM_RETRIES; attempt++) {
+      try {
+        return await liveCompleteOnce(key, model, prompt, maxTokens);
+      } catch (e) {
+        lastErr = e instanceof Error ? e : new Error(String(e));
+        // Retry on rate limit (429) and transient 5xx, with backoff.
+        const retryable =
+          lastErr.message === "llm_http_429" ||
+          lastErr.message === "llm_http_502" ||
+          lastErr.message === "llm_http_503" ||
+          lastErr.message === "llm_http_529" ||
+          lastErr.message === "llm_timeout";
+        if (!retryable || attempt === MAX_LLM_RETRIES) throw lastErr;
+        const backoff =
+          (lastErr as Error & { retryAfterMs?: number }).retryAfterMs ??
+          Math.min(8000, 500 * 2 ** attempt);
+        await sleep(backoff);
+      }
+    }
+    throw lastErr;
+  } finally {
+    release();
+  }
+}
+
+async function liveCompleteOnce(
+  key: string,
+  model: ModelSpec,
+  prompt: string,
+  maxTokens: number
+): Promise<LlmResult> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 60_000);
   try {
@@ -142,7 +201,17 @@ async function liveComplete(
       }),
       signal: ac.signal,
     });
-    if (!res.ok) throw new Error(`llm_http_${res.status}`);
+    if (!res.ok) {
+      const err = new Error(`llm_http_${res.status}`) as Error & {
+        retryAfterMs?: number;
+      };
+      const ra = res.headers.get("retry-after");
+      if (ra) {
+        const secs = Number(ra);
+        if (Number.isFinite(secs)) err.retryAfterMs = secs * 1000;
+      }
+      throw err;
+    }
     const json: unknown = await res.json();
     const j = json as {
       choices?: Array<{
