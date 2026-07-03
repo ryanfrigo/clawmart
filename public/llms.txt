@@ -1,0 +1,45 @@
+# Clawmart
+
+> Clawmart is an independent storefront selling curated, ready-to-run skill
+> packs for OpenClaw (github.com/openclaw/openclaw), the self-hosted personal
+> AI assistant. OpenClaw's ClawHub registry offers free à-la-carte skills;
+> clawmart sells the assembled layer — multi-skill packs for one job, built to
+> the AgentSkills spec, with a setup guide. Guest checkout, 14-day refund.
+> Clawmart is not affiliated with or endorsed by OpenClaw.
+
+## Packs
+
+- [AI SDR Pack](https://clawmart.co/packs/ai-sdr): $39. Turn OpenClaw into an outbound sales rep — prospect research, personalized cold opens, follow-up cadences, reply triage, meeting booking, pipeline log. Drafts and schedules; you keep a human in the loop.
+- [E-Commerce Ops Pack](https://clawmart.co/packs/ecom-ops): $39. Shopify/DTC store operations — inventory watch, order triage, refund drafts, review requests, reorder logic, a daily store brief. Read-and-draft; actions are human-gated.
+- [Personal Chief of Staff Pack](https://clawmart.co/packs/chief-of-staff): $39. Inbox triage, calendar guard, a real morning brief, task capture, meeting prep, end-of-day wrap. Drafts replies; you approve and send.
+- [Content Engine Pack](https://clawmart.co/packs/content-engine): $39. One recording into show notes, timestamped clip suggestions, platform-native social posts, and a newsletter draft. Produces drafts and finds moments; you cut and publish.
+- [All-Access Bundle](https://clawmart.co/packs/all-access): $99. All four packs plus every future pack.
+
+## Guides
+
+- [OpenClaw for sales / outbound SDR](https://clawmart.co/openclaw/for-sales)
+- [OpenClaw for Shopify & e-commerce ops](https://clawmart.co/openclaw/for-ecommerce)
+- [OpenClaw as a personal chief of staff](https://clawmart.co/openclaw/for-founders)
+- [OpenClaw for creators & podcasters](https://clawmart.co/openclaw/for-creators)
+- [Are OpenClaw skills free? ClawHub vs Clawmart](https://clawmart.co/openclaw/skills-free-or-paid)
+
+## Free
+
+- [Three free OpenClaw skills](https://clawmart.co/free): prospect research, meeting prep, and transcript cleanup — a free zip, no signup, one skill from each of three packs.
+
+## How packs work
+
+A pack is a zip of skill folders plus a README setup guide. After purchase you
+get a private, permanent download link. Unzip and copy the skill folders into
+`~/.openclaw/skills` (or your workspace's `skills/` directory), then start a new
+OpenClaw session. Nothing runs on clawmart's servers; the skills are plain
+Markdown you can read and edit. Skills that touch email, a calendar, or a store
+assume you have connected those tools in OpenClaw yourself.
+
+## Honesty
+
+Packs are curated instruction bundles built to the OpenClaw AgentSkills spec,
+adapted to your own stack — not tested against every environment, and not a
+guarantee of results. OpenClaw skills are free to assemble yourself on ClawHub;
+clawmart sells curation, coherence, and a setup guide. Every pack has a 14-day,
+no-questions refund.
