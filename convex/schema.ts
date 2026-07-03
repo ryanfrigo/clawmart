@@ -48,4 +48,63 @@ export default defineSchema({
     domain: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_email", ["email"]),
+
+  // ---- Company Studio (docs/COMPANY-STUDIO.md) ----------------------------
+
+  // One row per user company idea. Owned by a Clerk user; public via slug.
+  companies: defineTable({
+    ownerId: v.string(), // Clerk subject
+    slug: v.string(), // public URL key — re-slugged from brand name mid-build
+    idea: v.string(), // the user's raw description
+    name: v.string(), // provisional until the brand agent lands
+    tagline: v.optional(v.string()),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("building"),
+      v.literal("live"),
+      v.literal("failed")
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_owner", ["ownerId"]),
+
+  // One row per pipeline step per build.
+  agentRuns: defineTable({
+    companyId: v.id("companies"),
+    agentKey: v.string(), // "strategist" | "brand" | "product" | "landing" | "marketing"
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("done"),
+      v.literal("failed")
+    ),
+    model: v.string(),
+    attempt: v.number(), // 1-based; one retry max
+    error: v.optional(v.string()),
+    tokensIn: v.optional(v.number()),
+    tokensOut: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_company", ["companyId"]),
+
+  // Append-only live feed shown in /studio/[id].
+  agentEvents: defineTable({
+    companyId: v.id("companies"),
+    agentKey: v.string(),
+    kind: v.union(v.literal("status"), v.literal("output")),
+    text: v.string(),
+    ts: v.number(),
+  }).index("by_company", ["companyId"]),
+
+  // Final artifacts, one per kind per company (upserted on re-runs).
+  // json is a stringified blob — agent output schemas evolve too fast for validators.
+  companyAssets: defineTable({
+    companyId: v.id("companies"),
+    kind: v.string(), // "plan" | "brand" | "product" | "landing" | "marketing"
+    json: v.string(),
+    updatedAt: v.number(),
+  }).index("by_company_kind", ["companyId", "kind"]),
 });
