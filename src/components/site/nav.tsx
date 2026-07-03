@@ -20,10 +20,10 @@ export function SiteNav() {
             Packs
           </Link>
           <Link
-            href="/packs#all-access"
+            href="/free"
             className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
           >
-            Pricing
+            Free
           </Link>
           <Link
             href="/about"
