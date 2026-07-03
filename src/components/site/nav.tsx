@@ -26,6 +26,12 @@ export function SiteNav() {
             Free
           </Link>
           <Link
+            href="/studio"
+            className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Studio
+          </Link>
+          <Link
             href="/about"
             className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
           >

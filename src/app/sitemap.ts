@@ -32,6 +32,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: BASE_URL, lastModified: now, changeFrequency: "weekly", priority: 1.0 },
     { url: `${BASE_URL}/packs`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${BASE_URL}/studio`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     ...packRoutes,
     ...landingRoutes,
     { url: `${BASE_URL}/free`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },

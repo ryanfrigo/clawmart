@@ -3,7 +3,7 @@
  * Clerk Frontend API URL, e.g. https://xxx.clerk.accounts.dev); the matching
  * "convex" JWT template lives in the Clerk instance.
  */
-export default {
+const authConfig = {
   providers: [
     {
       domain: process.env.CLERK_JWT_ISSUER_DOMAIN,
@@ -11,3 +11,5 @@ export default {
     },
   ],
 };
+
+export default authConfig;

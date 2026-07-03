@@ -355,6 +355,38 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ---------- Studio ---------- */}
+      <section className="border-t border-border py-20 sm:py-24">
+        <div className="mx-auto max-w-6xl px-5 sm:px-6">
+          <div className="relative overflow-hidden rounded-2xl border border-lobster/35 bg-card/60 p-8 sm:p-12">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -left-20 -top-20 size-56 rounded-full bg-lobster/10 blur-[70px]"
+            />
+            <p className="relative font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
+              New — Clawmart Studio
+            </p>
+            <h2 className="relative mt-3 max-w-2xl font-display text-4xl tracking-tight sm:text-5xl">
+              Describe a company. Watch an AI founding team build it.
+            </h2>
+            <p className="relative mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+              Type a company or SaaS idea and five agents — strategist, brand,
+              product, landing page, marketing — draft the whole thing live:
+              business plan, name and identity, product spec, a public landing
+              page, and a launch kit. Free to try. AI-generated drafts, honestly
+              labeled — not guarantees.
+            </p>
+            <Link
+              href="/studio"
+              className="relative mt-8 inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Open the Studio
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ---------- Waitlist ---------- */}
       <section className="border-t border-border py-16">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 sm:px-6 md:flex-row md:items-center md:justify-between">
