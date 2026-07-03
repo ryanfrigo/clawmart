@@ -70,3 +70,18 @@ Format:
   - Hire funnel required Clerk sign-in before checkout (401 for anonymous visitors)
   - The 14-day kill window (<5 pre-auths) expired ~2026-05-04 with zero signal
 - **What we learned:** Zero distribution ⇒ zero signal — the thesis was never really tested, but the April research already showed no bootstrapped precedent for a solo generic "hire an AI agent" catalog against funded incumbents. Structural lesson: v0 shipped with three unreconciled pricing models on one site, a sign-in wall on the only money page, and no marketing anyone could fire. The 2026-07-02 relaunch (AI Visibility Fix Kit — see docs/RELAUNCH-SPEC.md) fixes all three: one SKU, guest checkout, launch assets prepared for the founder.
+
+---
+
+## Strategic kill #3: "AI Visibility Fix Kit" (built + deployed 2026-07-02)
+
+- **Killed on:** 2026-07-02 (same day, hours after shipping) — human-directed
+- **Ran for:** ~hours (deployed to clawmart.co, test mode; never distributed)
+- **Reason:** doesn't-work (thesis) — the "just ask an LLM" objection
+- **What we learned:** A self-serve, DIY-able audit is an *information* product, and
+  information products lose to free frontier LLMs for the exact (technical, motivated) buyer
+  who'd pay. The one non-substitutable core (a model can't reliably report what models say
+  about you) was too thin to sell alone, and the fixes were fully promptable. Ryan's own
+  doubt ("anyone could just ask a LLM for it") was correct. Pivoted to selling *leverage/
+  convenience* (curated OpenClaw skill packs) to a validated audience instead — the moat is
+  assembly + a real ecosystem, not information. See docs/PACKS-BUILD-CONTRACT.md.

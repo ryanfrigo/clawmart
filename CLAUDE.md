@@ -1,59 +1,56 @@
 # Clawmart
 
-Clawmart sells **AI visibility fixes**. The free AI Visibility Check at clawmart.co samples
-how the AI models that power ChatGPT, Claude, and Perplexity answer buyer-intent questions
-about a brand; the **$49 one-time AI Visibility Fix Kit** ships ready-to-paste fixes
-(JSON-LD, answer-capsule rewrites, robots.txt AI-crawler config, FAQ drafts) with a
-verifiable transcript appendix. Guest checkout — no accounts in v1.
+Clawmart is a storefront of **premium skill packs for [OpenClaw](https://github.com/openclaw/openclaw)** —
+the self-hosted personal AI assistant. OpenClaw's free registry (ClawHub) offers à-la-carte
+skills; clawmart sells the **curated, assembled, ready-to-run** layer: multi-skill packs for
+one job (AI SDR, E-Commerce Ops, Personal Chief of Staff, Content Engine), built to the
+OpenClaw AgentSkills spec, delivered as a gated zip download. Guest checkout, 14-day refund.
 
-Product spec (binding, red-teamed): `docs/RELAUNCH-SPEC.md`. Cross-module API contract:
-`docs/BUILD-CONTRACT.md`. Go-live checklist: `docs/FLIP-TO-LIVE.md`.
+Product spec + architecture: `docs/PACKS-BUILD-CONTRACT.md`. Go-live: `docs/FLIP-TO-LIVE.md`.
+Catalog source of truth: `src/lib/packs.ts`. Distribution: `marketing/`.
 
-**North-star metric:** weekly Stripe net revenue (kit sales; later, fix-drop subscriptions).
-**Proxy metrics:** free checks run, check→purchase conversion, waitlist signups.
-(The pre-2026-07 x402/USDC north star is dead — see `autopilot-state/graveyard.md`.)
+**North-star metric:** weekly Stripe net revenue (pack sales; later, more packs / a bundle sub).
+**Proxy metrics:** pack-page views, page→checkout conversion, waitlist signups.
 
 ## Stack
 
 - Next.js 16 App Router · React 19 · TypeScript · Tailwind 4 · shadcn/ui
-- Convex — source of truth (`reports`, `samples`, `checks`, `rateLimits`, `spend`,
-  `waitlist`); the report pipeline runs as chunked self-scheduling Convex actions;
-  the Stripe webhook is a Convex httpAction (`/stripe/webhook` on the `.site` URL)
-- Stripe Checkout, one-time payment, guest-friendly (`customer_creation: "always"`)
-- LLM via Vercel AI Gateway (`AI_GATEWAY_API_KEY` in Convex env; `LLM_MODE=mock` for
-  deterministic local E2E). Clerk is currently unused (guest-only v1) but deps remain
-  for a future accounts/subscription tier.
-- Deployed on Vercel
+- Convex — source of truth (`purchases`, `rateLimits`, `waitlist`). A purchase is Stripe
+  Checkout → a signature-verified idempotent Convex httpAction webhook (`/stripe/webhook` on
+  the `.site` URL) → `paid` → gated download. **No LLM pipeline.**
+- Stripe Checkout, one-time payment, guest (`customer_creation: "always"`).
+- Pack file contents live under `packs/<slug>/**`, compiled into `src/lib/pack-contents.ts`
+  by `scripts/build-pack-contents.mjs` (runs via `prebuild`); `/api/download/[token]` serves
+  a jszip gated by purchase status.
+- Deployed on Vercel. Clerk is installed but unused (guest-only v1).
 
-## Trust rules (binding for ALL copy and code in this repo)
+## Trust rules (binding for ALL copy and code)
 
-- Claim only "the AI models that power ChatGPT/Claude/Perplexity, queried via their APIs" —
-  never "how ChatGPT sees you" declaratives.
-- Scores always carry the adjacent methodology disclaimer + uncertainty band. Free check
-  shows tier labels, never bare integers.
-- Banned phrases: "guaranteed", "will improve", "get recommended by ChatGPT", numeric lift
-  claims, "rank #1 in AI search".
-- No fabricated stats, logos, testimonials, or usage counters — anywhere, ever.
+- Nominative use of "OpenClaw" only; state non-affiliation in the footer; no OpenClaw logos.
+- Honest about what a pack is: curated, ready-to-install skill bundles built to the
+  AgentSkills spec, with a setup guide — adapt to your stack; not tested against your exact
+  environment. 14-day refund.
+- No fabricated stats, testimonials, ratings, or counters — anywhere, ever.
+- No "guaranteed results".
 
 ## Autopilot
 
-The clawpilot loop is **PAUSED** (`autopilot-state/PAUSED`) — its guardrails and skills
-still reference deleted x402 surfaces. Do not resume until
-`.claude/plugins/clawmart-autopilot/CLAUDE.md` and `.claude/skills/clawmart-*` are rewritten
-for the Fix Kit product. Entry points: `/clawpilot*` commands.
+The clawpilot loop is **PAUSED** (`autopilot-state/PAUSED`) — its guardrails/skills reference
+deleted surfaces from earlier products. Do not resume until rewritten for the packs product.
 
 ## Hard rules (apply to every Claude session in this repo)
 
 1. **Never edit, print, or exfiltrate secrets.** `.env*`, Stripe keys, Convex deploy keys,
-   `AI_GATEWAY_API_KEY`, `SERVER_SHARED_SECRET` are off-limits to display; manage via
-   `vercel env` / `npx convex env set` with piped values only.
-2. **Never push to `main` directly.** Changes land via PR branches. Autopilot ticks use
-   `autopilot/tick-*` draft PRs; humans (or an explicitly human-directed session) promote.
-3. **Never post to external platforms** (X, HN, Reddit, Discord, email) on the user's
-   behalf. Marketing copy is generated into files (`marketing/`) for human review, never sent.
-4. **Never move funds.** Stripe refunds for failed generations are flagged
-   (`refund_flagged`) for Ryan to execute — code never issues refunds autonomously.
+   `SERVER_SHARED_SECRET` are off-limits to display; manage via `vercel env` /
+   `npx convex env set` with piped values only.
+2. **Never push to `main` directly.** Changes land via PR branches; humans promote to main.
+   Human-directed sessions may deploy a branch to Vercel prod (as this build did) while main
+   stays clean until merge.
+3. **Never post to external platforms** (X, HN, Reddit, Discord, ClawHub, email) on the
+   user's behalf, and never reveal the founder's identity. Marketing copy is generated into
+   `marketing/` for the founder to fire manually. No astroturfing/sockpuppets, ever.
+4. **Never move funds.** Refunds are executed by the founder in Stripe; code never refunds.
 5. **One change per autopilot tick** (~400-line ceiling). Human-directed sessions may exceed
-   with an explicit goal (as the 2026-07-02 relaunch did — declared in the PR description).
-6. **Kill the loop if things break.** On `npm run build` / `npm run lint` failure during an
-   autopilot tick, revert, graveyard, stop.
+   with an explicit goal (declared in the PR).
+6. **Kill the loop if things break.** On `npm run build`/`lint` failure during an autopilot
+   tick, revert, graveyard, stop.
