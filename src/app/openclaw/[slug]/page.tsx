@@ -22,7 +22,9 @@ export async function generateMetadata({
   const page = getLanding(slug);
   if (!page) return {};
   return {
-    title: page.seoTitle,
+    // absolute so the layout's "· Clawmart" template doesn't double-append
+    // (the authored seoTitle already ends with "· Clawmart").
+    title: { absolute: page.seoTitle },
     description: page.metaDescription,
     keywords: page.targetKeywords,
     alternates: { canonical: `${BASE}/openclaw/${slug}` },
