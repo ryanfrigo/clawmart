@@ -23,6 +23,11 @@ export default defineSchema({
     stripeSessionId: v.optional(v.string()), // idempotency key for fulfillment
     stripePaymentIntentId: v.optional(v.string()),
     amountUsd: v.number(), // whole dollars, validated against allowed prices
+    // Crypto (USDC on Base) rail — optional; card purchases leave these unset.
+    paymentMethod: v.optional(v.union(v.literal("card"), v.literal("crypto"))),
+    expectedUsdcMicro: v.optional(v.number()), // exact USDC (6dp micro units) to match on-chain
+    cryptoFromBlock: v.optional(v.number()), // Base block at order creation — scan from here
+    cryptoTxHash: v.optional(v.string()), // the matched on-chain payment
     createdAt: v.number(),
     paidAt: v.optional(v.number()),
   })

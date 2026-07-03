@@ -5,6 +5,7 @@ import { ArrowLeft, Check, FileText, ShieldCheck } from "lucide-react";
 import { PACKS, BUNDLE, getPack, isBundle, type Pack } from "@/lib/packs";
 import { PACK_FILES } from "@/lib/pack-contents";
 import { BuyButton } from "@/components/purchase/buy-button";
+import { CryptoBuyButton } from "@/components/purchase/crypto-buy-button";
 import { InstallSteps } from "@/components/site/install-steps";
 import {
   NON_AFFILIATION,
@@ -165,6 +166,9 @@ function PackDetail({ pack }: { pack: Pack }) {
                 label={`Buy ${pack.title}`}
                 className="mt-5 w-full"
               />
+              <div className="mt-2.5 text-center">
+                <CryptoBuyButton slug={pack.slug} />
+              </div>
               <RefundNote />
               <p className="mt-4 border-t border-border pt-4 text-[12px] leading-relaxed text-muted-foreground">
                 Prefer everything? The{" "}
