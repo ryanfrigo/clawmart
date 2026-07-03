@@ -32,8 +32,17 @@ async function callOpenRouter(
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY is not configured");
 
+  // Bound a hung upstream call well below the action ceiling so the step can
+  // retry/fail cleanly. Feature-detected: fall back to no signal if the
+  // runtime lacks AbortSignal.timeout.
+  const signal =
+    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(120_000)
+      : undefined;
+
   const res = await fetch(OPENROUTER_URL, {
     method: "POST",
+    signal,
     headers: {
       authorization: `Bearer ${key}`,
       "content-type": "application/json",

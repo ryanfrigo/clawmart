@@ -9,6 +9,7 @@ import { ConvexError } from "convex/values";
 import { toast } from "sonner";
 import { ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
+import { clerkEnabled, StudioUnavailable } from "@/components/studio/clerk-enabled";
 import { StatusBadge } from "@/components/studio/status-badge";
 import { Button } from "@/components/ui/button";
 
@@ -155,6 +156,8 @@ function CompanyGrid() {
 export function StudioLauncher() {
   const companies = useQuery(api.companies.listMine, {});
   const atLimit = Array.isArray(companies) && companies.length >= 3;
+
+  if (!clerkEnabled) return <StudioUnavailable />;
 
   return (
     <>

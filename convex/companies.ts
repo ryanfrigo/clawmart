@@ -249,7 +249,14 @@ export const buildState = query({
   },
 });
 
-/** UNAUTHENTICATED — powers the public /c/[slug] page. Safe fields only. */
+/**
+ * UNAUTHENTICATED — powers the public /c/[slug] page. Safe fields only.
+ *
+ * Serves the landing whenever a landing asset EXISTS, not just when status is
+ * "live": assets are only overwritten on successful steps, so a failed or
+ * in-progress REBUILD keeps the previously shared page up instead of demoting
+ * it to a holding stub. First builds have no assets yet → holding page.
+ */
 export const getPublicBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, args) => {
@@ -258,17 +265,6 @@ export const getPublicBySlug = query({
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
     if (!company) return null;
-
-    if (company.status !== "live") {
-      // Building/failed companies exist publicly only as a name + status.
-      return {
-        name: company.name,
-        tagline: company.tagline ?? null,
-        status: company.status,
-        landing: null,
-        brand: null,
-      };
-    }
 
     const assets = await ctx.db
       .query("companyAssets")
@@ -282,6 +278,34 @@ export const getPublicBySlug = query({
       landing: byKind["landing"] ?? null,
       brand: byKind["brand"] ?? null,
     };
+  },
+});
+
+export const remove = mutation({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args): Promise<null> => {
+    const ownerId = await requireUser(ctx);
+    const company = await ctx.db.get(args.companyId);
+    if (!company || company.ownerId !== ownerId) throw new ConvexError("not_found");
+    // Any still-scheduled runStep no-ops once these rows are gone
+    // (getStepContext returns null for a missing company/run).
+    const runs = await ctx.db
+      .query("agentRuns")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    for (const row of runs) await ctx.db.delete(row._id);
+    const events = await ctx.db
+      .query("agentEvents")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    for (const row of events) await ctx.db.delete(row._id);
+    const assets = await ctx.db
+      .query("companyAssets")
+      .withIndex("by_company_kind", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    for (const row of assets) await ctx.db.delete(row._id);
+    await ctx.db.delete(args.companyId);
+    return null;
   },
 });
 
@@ -390,7 +414,8 @@ export const completeStep = internalMutation({
       tokensOut: args.tokensOut,
     });
 
-    // The brand step names the company and settles its public slug.
+    // The brand step names the company and settles its public slug — once.
+    // A locked slug never changes on rebuild: shared /c/ links must not rot.
     if (key === "brand") {
       try {
         const brand = JSON.parse(args.outputJson) as {
@@ -398,16 +423,19 @@ export const completeStep = internalMutation({
           tagline?: string;
         };
         if (brand.name && typeof brand.name === "string") {
-          const slug = await uniqueSlug(ctx, slugify(brand.name));
-          await ctx.db.patch(args.companyId, {
+          const patch: Partial<Doc<"companies">> = {
             name: brand.name.slice(0, 80),
             tagline:
               typeof brand.tagline === "string"
                 ? brand.tagline.slice(0, 160)
                 : company.tagline,
-            slug,
             updatedAt: now,
-          });
+          };
+          if (!company.slugLocked) {
+            patch.slug = await uniqueSlug(ctx, slugify(brand.name));
+            patch.slugLocked = true;
+          }
+          await ctx.db.patch(args.companyId, patch);
         }
       } catch {
         // keep provisional name — never fail the build over branding metadata
@@ -435,6 +463,63 @@ export const completeStep = internalMutation({
         agentKey: key,
         kind: "status",
         text: "Build complete — your company page is live.",
+        ts: now,
+      });
+    }
+    return null;
+  },
+});
+
+/**
+ * Watchdog (crons.ts): a "building" company with no run activity for this long
+ * has a crashed pipeline (deploy mid-build, action death). Mark it failed so
+ * the owner can rebuild — otherwise rebuild's build_in_progress guard bricks
+ * the company forever.
+ */
+const BUILD_STALE_MS = 10 * 60 * 1000;
+
+export const failStaleBuilds = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<null> => {
+    const cutoff = Date.now() - BUILD_STALE_MS;
+    const building = (
+      await ctx.db
+        .query("companies")
+        .filter((q) => q.eq(q.field("status"), "building"))
+        .collect()
+    ).filter((c) => c.updatedAt < cutoff);
+
+    for (const company of building) {
+      const runs = await ctx.db
+        .query("agentRuns")
+        .withIndex("by_company", (q) => q.eq("companyId", company._id))
+        .collect();
+      const lastActivity = Math.max(
+        company.updatedAt,
+        ...runs.map((r) => Math.max(r.createdAt, r.startedAt ?? 0, r.finishedAt ?? 0))
+      );
+      if (lastActivity >= cutoff) continue;
+
+      const now = Date.now();
+      const activeKey =
+        runs.find((r) => r.status === "running")?.agentKey ??
+        runs.find((r) => r.status === "queued")?.agentKey ??
+        "strategist";
+      for (const r of runs) {
+        if (r.status === "queued" || r.status === "running") {
+          await ctx.db.patch(r._id, {
+            status: "failed",
+            error: "build stalled — stopped by watchdog",
+            finishedAt: now,
+          });
+        }
+      }
+      await ctx.db.patch(company._id, { status: "failed", updatedAt: now });
+      await ctx.db.insert("agentEvents", {
+        companyId: company._id,
+        agentKey: activeKey,
+        kind: "status",
+        text: "Build stalled and was stopped. You can rebuild from the dashboard.",
         ts: now,
       });
     }

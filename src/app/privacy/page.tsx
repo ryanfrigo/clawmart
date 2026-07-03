@@ -27,7 +27,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-16 sm:px-6 sm:py-20">
       <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
-        Effective 2026-07-02
+        Effective 2026-07-03
       </p>
       <h1 className="mt-3 font-display text-4xl tracking-tight sm:text-5xl">
         Privacy Policy
@@ -63,6 +63,15 @@ export default function PrivacyPage() {
           Stripe session/payment reference and the pack you bought so we can
           deliver the download and honor refunds.
         </li>
+        <li>
+          <strong className="text-foreground">An account, only for the
+          Studio.</strong> Building a concept company requires signing in
+          (handled by Clerk); we store your email and the ideas you submit,
+          plus the AI-generated drafts. Idea text is sent to AI model providers
+          via OpenRouter to generate those drafts — don&apos;t include personal
+          or confidential information in an idea. Company pages you build are
+          public at their /c/ link.
+        </li>
       </ul>
 
       <H2>What we don&apos;t do</H2>
@@ -81,7 +90,15 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong className="text-foreground">Convex</strong> — our database
-          (purchases, waitlist).
+          (purchases, waitlist, Studio companies).
+        </li>
+        <li>
+          <strong className="text-foreground">Clerk</strong> — Studio account
+          sign-in.
+        </li>
+        <li>
+          <strong className="text-foreground">OpenRouter</strong> — routes
+          Studio idea text to AI model providers to generate drafts.
         </li>
         <li>
           <strong className="text-foreground">Vercel</strong> — hosting.

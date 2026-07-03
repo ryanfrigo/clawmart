@@ -4,12 +4,16 @@
  * "convex" JWT template lives in the Clerk instance.
  */
 const authConfig = {
-  providers: [
-    {
-      domain: process.env.CLERK_JWT_ISSUER_DOMAIN,
-      applicationID: "convex",
-    },
-  ],
+  // A deployment without the Clerk env var still pushes cleanly — the guest
+  // packs/checkout backend must never depend on Studio auth being configured.
+  providers: process.env.CLERK_JWT_ISSUER_DOMAIN
+    ? [
+        {
+          domain: process.env.CLERK_JWT_ISSUER_DOMAIN,
+          applicationID: "convex",
+        },
+      ]
+    : [],
 };
 
 export default authConfig;

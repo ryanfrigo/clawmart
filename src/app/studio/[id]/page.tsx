@@ -5,11 +5,20 @@ import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { ArrowRight } from "lucide-react";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { BuildView } from "@/components/studio/build-view";
+import { clerkEnabled, StudioUnavailable } from "@/components/studio/clerk-enabled";
 import { Button } from "@/components/ui/button";
 
 export default function StudioBuildPage() {
   const params = useParams<{ id: string }>();
   const companyId = params.id as Id<"companies">;
+
+  if (!clerkEnabled) {
+    return (
+      <div className="mx-auto max-w-6xl px-5 py-12 sm:px-6 sm:py-16">
+        <StudioUnavailable />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-12 sm:px-6 sm:py-16">

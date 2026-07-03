@@ -37,15 +37,19 @@ export const join = mutation({
       await ctx.db.patch(rl._id, { count: rl.count + 1 });
     }
 
+    // Dedupe per (email, source), not globally per email: someone on the packs
+    // waitlist who also signs up on a /c/<slug> concept page is a distinct,
+    // countable signal for that company.
+    const source = args.source.slice(0, 64);
     const existing = await ctx.db
       .query("waitlist")
       .withIndex("by_email", (q) => q.eq("email", email))
-      .first();
-    if (!existing) {
+      .collect();
+    if (!existing.some((row) => row.source === source)) {
       const domain = args.domain?.trim().toLowerCase();
       await ctx.db.insert("waitlist", {
         email,
-        source: args.source.slice(0, 32),
+        source,
         ...(domain ? { domain } : {}),
         createdAt: Date.now(),
       });

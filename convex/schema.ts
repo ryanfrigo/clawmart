@@ -55,6 +55,7 @@ export default defineSchema({
   companies: defineTable({
     ownerId: v.string(), // Clerk subject
     slug: v.string(), // public URL key — re-slugged from brand name mid-build
+    slugLocked: v.optional(v.boolean()), // once branded, the slug never changes (shared links)
     idea: v.string(), // the user's raw description
     name: v.string(), // provisional until the brand agent lands
     tagline: v.optional(v.string()),

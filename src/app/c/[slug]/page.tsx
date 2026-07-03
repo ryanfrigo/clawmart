@@ -14,19 +14,28 @@ const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const FALLBACK_PRIMARY = "#f4693b"; // lobster coral
 const FALLBACK_ACCENT = "#5cc8d6"; // tide
 
-function safeHex(v: unknown, fallback: string): string {
-  return typeof v === "string" && HEX.test(v.trim()) ? v.trim() : fallback;
-}
-
-function pickInk(hex: string): string {
+function luminance(hex: string): number {
   let h = hex.replace("#", "");
   if (h.length === 3) h = h.split("").map((c) => c + c).join("");
   const n = parseInt(h, 16);
   const r = (n >> 16) & 255;
   const g = (n >> 8) & 255;
   const b = n & 255;
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return luminance > 0.6 ? "#0a0e17" : "#f6f7f9";
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+/**
+ * Valid hex AND bright enough to read against the fixed dark page — a model
+ * can return #111827 as an "accent", which passes a format check but renders
+ * the hero eyebrow and CTA invisible. Too-dark colors fall back.
+ */
+function safeHex(v: unknown, fallback: string): string {
+  const hex = typeof v === "string" && HEX.test(v.trim()) ? v.trim() : fallback;
+  return luminance(hex) < 0.25 ? fallback : hex;
+}
+
+function pickInk(hex: string): string {
+  return luminance(hex) > 0.6 ? "#0a0e17" : "#f6f7f9";
 }
 
 function parse(json: string | null): Record<string, unknown> | null {
@@ -109,8 +118,10 @@ export default async function CompanyPage({
   const company = await fetchCompany(slug);
   if (!company) notFound();
 
-  // Not-yet-live: tasteful holding page with just the name.
-  if (company.status !== "live") {
+  // No landing asset yet (first build in progress or failed before the
+  // landing step): tasteful holding page with just the name. A company with
+  // assets keeps its page up even if a later rebuild fails mid-way.
+  if (!company.landing) {
     return (
       <>
         <div className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-center justify-center px-5 py-24 text-center sm:px-6">

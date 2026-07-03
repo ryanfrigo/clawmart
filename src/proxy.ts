@@ -13,7 +13,19 @@ const hasClerk =
   !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
   !!process.env.CLERK_SECRET_KEY;
 
-export default hasClerk ? clerkMiddleware() : () => NextResponse.next();
+const withClerk = clerkMiddleware();
+
+// Clerk trouble (misconfigured keys, verification outage) must degrade to
+// no-auth — guest packs/checkout keep serving; only Studio sign-in suffers.
+const guarded: typeof withClerk = async (request, event) => {
+  try {
+    return await withClerk(request, event);
+  } catch {
+    return NextResponse.next();
+  }
+};
+
+export default hasClerk ? guarded : () => NextResponse.next();
 
 export const config = {
   matcher: [

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { toast } from "sonner";
@@ -18,6 +19,7 @@ import {
   Megaphone,
   Palette,
   RefreshCw,
+  Trash2,
   X,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
@@ -255,9 +257,30 @@ function OutputTabs({
 /* ---------------- root ---------------- */
 
 export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
+  const router = useRouter();
   const state = useQuery(api.companies.buildState, { companyId });
   const rebuild = useMutation(api.companies.rebuild);
+  const removeCompany = useMutation(api.companies.remove);
   const [rebuilding, setRebuilding] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function onDelete() {
+    if (
+      !window.confirm(
+        "Delete this company? Its build, outputs, and public page are removed permanently."
+      )
+    )
+      return;
+    setDeleting(true);
+    try {
+      await removeCompany({ companyId });
+      toast.success("Company deleted.");
+      router.push("/studio");
+    } catch {
+      toast.error("Couldn't delete the company. Please try again.");
+      setDeleting(false);
+    }
+  }
 
   async function onRebuild() {
     if (!window.confirm("Rebuild this company? The current outputs will be replaced.")) return;
@@ -358,14 +381,23 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
               Public page
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => onCopyLink(company.slug)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Link2 className="size-3.5" />
-            Copy link
-          </button>
+          {/* The slug is provisional until the brand step locks it — copying
+              it mid-first-build would hand out a link that 404s forever. */}
+          {isLive ? (
+            <button
+              type="button"
+              onClick={() => onCopyLink(company.slug)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Link2 className="size-3.5" />
+              Copy link
+            </button>
+          ) : (
+            <span className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground/60">
+              <Link2 className="size-3.5" />
+              Copy link
+            </span>
+          )}
           {canRebuild && (
             <button
               type="button"
@@ -377,6 +409,15 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
               Rebuild
             </button>
           )}
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive disabled:opacity-50"
+          >
+            <Trash2 className="size-3.5" />
+            Delete
+          </button>
         </div>
       </div>
 

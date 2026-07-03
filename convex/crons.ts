@@ -21,4 +21,13 @@ crons.interval(
   {}
 );
 
+// Studio watchdog: a crashed build pipeline leaves a company stuck in
+// "building" (which blocks rebuild). Fail builds with no activity for 10 min.
+crons.interval(
+  "studio: fail stalled builds",
+  { minutes: 10 },
+  internal.companies.failStaleBuilds,
+  {}
+);
+
 export default crons;

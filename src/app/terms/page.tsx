@@ -27,7 +27,7 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-16 sm:px-6 sm:py-20">
       <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
-        Effective 2026-07-02
+        Effective 2026-07-03
       </p>
       <h1 className="mt-3 font-display text-4xl tracking-tight sm:text-5xl">
         Terms of Service
@@ -73,6 +73,20 @@ export default function TermsPage() {
         </a>
         . If your download ever fails to work, tell us and we&apos;ll fix it or
         refund you.
+      </P>
+
+      <H2>Clawmart Studio</H2>
+      <P>
+        The Studio drafts a concept company — plan, brand, product spec, a
+        public page, and marketing copy — from an idea you submit, using AI
+        models. Outputs are AI-generated drafts: unreviewed, sometimes wrong,
+        and not business, legal, or financial advice. You keep your idea; you
+        may use the generated drafts freely; every generated public page is
+        labeled as an AI-drafted concept. Don&apos;t use the Studio to create
+        deceptive, unlawful, or infringing content — we may take down pages
+        and revoke access that violate this. The Studio is free while we
+        validate demand; limits (companies per account, builds per day) may
+        change.
       </P>
 
       <H2>Your responsibilities</H2>
