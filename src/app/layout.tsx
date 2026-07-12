@@ -3,8 +3,6 @@ import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/goo
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ConvexClientProvider } from "@/components/convex-provider";
-import { SiteNav } from "@/components/site/nav";
-import { SiteFooter } from "@/components/site/footer";
 
 const sans = Instrument_Sans({
   subsets: ["latin"],
@@ -72,13 +70,9 @@ export default function RootLayout({
             backgroundSize: "128px 128px",
           }}
         />
-        <ConvexClientProvider>
-          <div className="flex min-h-screen flex-col">
-            <SiteNav />
-            <main className="flex-1">{children}</main>
-            <SiteFooter />
-          </div>
-        </ConvexClientProvider>
+        {/* Site chrome (nav/footer) lives in the (site) route group — generated
+            company sites at /c/[slug] render bare, as their own pages. */}
+        <ConvexClientProvider>{children}</ConvexClientProvider>
         <Toaster />
       </body>
     </html>

@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { ArrowRight } from "lucide-react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "../../../../../convex/_generated/dataModel";
 import { BuildView } from "@/components/studio/build-view";
 import { clerkEnabled, StudioUnavailable } from "@/components/studio/clerk-enabled";
 import { Button } from "@/components/ui/button";

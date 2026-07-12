@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "../../../../../convex/_generated/api";
 import { titleForSlug } from "@/lib/packs";
 import { microToUsdc, eip681 } from "@/lib/crypto";
 import { getConvexClient } from "@/lib/convex-server";
