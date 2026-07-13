@@ -57,8 +57,10 @@ export default defineSchema({
   // One row per user company idea. Owned by a Clerk user; public via slug.
   companies: defineTable({
     ownerId: v.string(), // Clerk subject
+    ownerEmail: v.optional(v.string()), // for the morning digest (from Clerk JWT)
     slug: v.string(), // public URL key — re-slugged from brand name mid-build
     slugLocked: v.optional(v.boolean()), // once branded, the slug never changes (shared links)
+    lastCheckinAt: v.optional(v.number()), // daily CEO check-in bookkeeping
     idea: v.string(), // the user's raw description
     name: v.string(), // provisional until the brand agent lands
     tagline: v.optional(v.string()),
@@ -72,7 +74,9 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_slug", ["slug"])
-    .index("by_owner", ["ownerId"]),
+    .index("by_owner", ["ownerId"])
+    // Cron paths (watchdog, check-ins, digests) must never table-scan.
+    .index("by_status", ["status"]),
 
   // One row per pipeline step per build.
   agentRuns: defineTable({

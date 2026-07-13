@@ -98,7 +98,18 @@ routes are signed-in only; `/c/[slug]` is public.
 - Trust rules apply to **generated** copy too: prompts forbid fabricated testimonials,
   user counts, ratings, and "guaranteed results" in landing pages and marketing kits
 
+## Daily CEO check-in (added 2026-07-13)
+
+Companies keep working after the build: a daily cron (`convex/checkins.ts`, 14:00 UTC)
+has a CEO agent write one honest note per live company — built ONLY from real waitlist
+numbers (total + last-24h) and the strategist's positioning — into the company's live
+feed (`agentKey: "ceo"`), plus a morning digest email per owner via Resend (env-gated on
+`RESEND_API_KEY`; without the key the in-app feed still works). Owner emails come from
+the Clerk JWT email claim at company creation. Guardrails: max 50 check-ins/day, 20h
+re-run gap per company, one model call each (worker model, 500 tokens, 30s timeout),
+prompt forbids invented metrics.
+
 ## v1 non-goals
 
-Deploying user apps to their own infra, ad-spend management, revenue share, recurring
-autonomous runs, payments for the studio itself (free tier validates demand first).
+Deploying user apps to their own infra, ad-spend management, revenue share, payments for
+the studio itself (free tier validates demand first).

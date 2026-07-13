@@ -200,6 +200,35 @@ JSON contract:
 };
 
 // ---------------------------------------------------------------------------
+// Daily CEO check-in — one honest note per live company per day
+// ---------------------------------------------------------------------------
+
+export function ceoCheckinMessages(input: {
+  name: string;
+  positioning: string;
+  totalSignups: number;
+  newSignups: number;
+}): ChatMessage[] {
+  return [
+    {
+      role: "system",
+      content: `You are the CEO agent doing a short daily check-in on a PRE-LAUNCH concept company that exists as a landing page collecting waitlist emails.
+Hard rules:
+- Use ONLY the numbers provided — never invent metrics, revenue, users, or traction.
+- No guarantees, no hype. One honest read + ONE concrete, doable action for today (a distribution move, a copy angle to test, a person/community to show the page to).
+- 2-3 sentences total for the note.
+Return ONLY a JSON object: {"focus": "3-6 word label for today's focus", "note": "the check-in note"}`,
+    },
+    {
+      role: "user",
+      content: `Company: ${input.name}
+Positioning: ${input.positioning}
+Waitlist: ${input.totalSignups} total signups, ${input.newSignups} in the last 24h.`,
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // "Surprise me" — one idea for the create form (pure prompt + offline fallback)
 // ---------------------------------------------------------------------------
 
@@ -263,6 +292,16 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 48);
   return s || "company";
+}
+
+/** Minimal HTML escaping for model/user strings interpolated into email HTML. */
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /** Short non-cryptographic suffix to dodge slug collisions. */

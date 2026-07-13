@@ -30,4 +30,14 @@ crons.interval(
   {}
 );
 
+// Daily CEO check-in: one honest note per live company into its feed, plus a
+// morning digest email per owner (env-gated on RESEND_API_KEY).
+// 14:00 UTC ≈ 7am PT — a morning email for US founders.
+crons.daily(
+  "studio: CEO daily check-in",
+  { hourUTC: 14, minuteUTC: 0 },
+  internal.checkins.dailyCheckins,
+  {}
+);
+
 export default crons;

@@ -9,6 +9,7 @@
  */
 
 import type * as agents from "../agents.js";
+import type * as checkins from "../checkins.js";
 import type * as companies from "../companies.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
@@ -25,6 +26,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agents: typeof agents;
+  checkins: typeof checkins;
   companies: typeof companies;
   crons: typeof crons;
   http: typeof http;
