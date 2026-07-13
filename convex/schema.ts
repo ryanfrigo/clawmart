@@ -44,10 +44,13 @@ export default defineSchema({
   // "New packs" waitlist — validates demand for future packs before we build them.
   waitlist: defineTable({
     email: v.string(),
-    source: v.string(), // e.g. "home" | "packs" | "purchase"
+    source: v.string(), // e.g. "home" | "purchase" | "c/<slug>"
     domain: v.optional(v.string()),
     createdAt: v.number(),
-  }).index("by_email", ["email"]),
+  })
+    .index("by_email", ["email"])
+    // Owner-facing demand signal: count signups per company page.
+    .index("by_source", ["source"]),
 
   // ---- Company Studio (docs/COMPANY-STUDIO.md) ----------------------------
 

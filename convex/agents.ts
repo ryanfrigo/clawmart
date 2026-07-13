@@ -10,10 +10,18 @@
  * OPENROUTER_API_KEY lives in Convex env only.
  */
 
-import { v } from "convex/values";
-import { internalAction } from "./_generated/server";
+import { v, ConvexError } from "convex/values";
+import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { PIPELINE, AGENTS, extractJson, type ChatMessage } from "./lib/agents";
+import {
+  PIPELINE,
+  AGENTS,
+  WORKER_MODEL,
+  FALLBACK_IDEAS,
+  surpriseIdeaMessages,
+  extractJson,
+  type ChatMessage,
+} from "./lib/agents";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MAX_ATTEMPTS = 2;
@@ -27,17 +35,19 @@ interface OpenRouterResult {
 async function callOpenRouter(
   model: string,
   messages: ChatMessage[],
-  maxTokens: number
+  maxTokens: number,
+  timeoutMs = 120_000
 ): Promise<OpenRouterResult> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY is not configured");
 
   // Bound a hung upstream call well below the action ceiling so the step can
-  // retry/fail cleanly. Feature-detected: fall back to no signal if the
-  // runtime lacks AbortSignal.timeout.
+  // retry/fail cleanly. Interactive callers pass a much shorter budget.
+  // Feature-detected: fall back to no signal if the runtime lacks
+  // AbortSignal.timeout.
   const signal =
     typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
-      ? AbortSignal.timeout(120_000)
+      ? AbortSignal.timeout(timeoutMs)
       : undefined;
 
   const res = await fetch(OPENROUTER_URL, {
@@ -75,6 +85,45 @@ async function callOpenRouter(
     tokensOut: data.usage?.completion_tokens,
   };
 }
+
+/**
+ * "Surprise me" — one model-invented idea for the create form. Auth'd and
+ * rate-limited (companies.bumpSurpriseLimit); falls back to a curated pool if
+ * the model call fails, so the button always produces something.
+ */
+export const surpriseIdea = action({
+  args: {},
+  handler: async (ctx): Promise<{ idea: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("unauthenticated");
+    await ctx.runMutation(internal.companies.bumpSurpriseLimit, {
+      userId: identity.subject,
+    });
+    try {
+      // 15s budget: this is a button click, not a pipeline step — a slow
+      // upstream should degrade to the offline pool, not a 2-minute spinner.
+      const result = await callOpenRouter(
+        WORKER_MODEL,
+        surpriseIdeaMessages(),
+        300,
+        15_000
+      );
+      const parsed = extractJson(result.text);
+      const idea = typeof parsed.idea === "string" ? parsed.idea.trim() : "";
+      if (idea.length >= 20 && idea.length <= 500) return { idea };
+      console.log("surprise_model_unusable_output");
+    } catch (err) {
+      // Visible in Convex logs — a dead key/model must not degrade silently
+      // to the canned pool forever.
+      console.log(
+        `surprise_model_failed: ${err instanceof Error ? err.message.slice(0, 200) : String(err)}`
+      );
+    }
+    return {
+      idea: FALLBACK_IDEAS[Math.floor(Math.random() * FALLBACK_IDEAS.length)],
+    };
+  },
+});
 
 export const runStep = internalAction({
   args: { companyId: v.id("companies"), stepIndex: v.number() },

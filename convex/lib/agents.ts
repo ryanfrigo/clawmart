@@ -200,6 +200,40 @@ JSON contract:
 };
 
 // ---------------------------------------------------------------------------
+// "Surprise me" — one idea for the create form (pure prompt + offline fallback)
+// ---------------------------------------------------------------------------
+
+export function surpriseIdeaMessages(): ChatMessage[] {
+  return [
+    {
+      role: "system",
+      content: `You invent ONE startup idea for someone to test with a landing page and waitlist.
+Rules:
+- A concrete niche with a specific customer (a trade, hobby, or job — not "everyone").
+- Plausible as a small SaaS or app; no crypto, no gambling, no medical claims.
+- 1-2 sentences, under 260 characters, plain words, no name for the company.
+Return ONLY a JSON object: {"idea": "..."}`,
+    },
+    {
+      role: "user",
+      content: "Surprise me with one idea.",
+    },
+  ];
+}
+
+/** Offline fallback pool if the model call fails — rotated randomly. */
+export const FALLBACK_IDEAS: readonly string[] = [
+  "An app for wedding photographers that automatically culls near-duplicate shots and drafts a client gallery the same night as the wedding.",
+  "A tool for youth sports coaches that turns a season schedule into automated parent reminders, carpool coordination, and snack rotations over text.",
+  "A service for independent landlords with 2-5 units that reads utility bills and rent payments from email and produces tax-ready books.",
+  "An assistant for food-truck owners that predicts tomorrow's prep quantities from weather, location, and past sales.",
+  "A tool for podcast guests that turns each appearance into a personal highlight page with clips, quotes, and links to share.",
+  "A scheduling tool for mobile dog groomers that plans routes, sends reminders, and handles rebooking without phone tag.",
+  "An app for community theater directors that manages auditions, conflicts, and rehearsal calls in one place parents actually check.",
+  "A service for Etsy sellers that watches material costs and quietly suggests when a listing's price no longer covers its margin.",
+];
+
+// ---------------------------------------------------------------------------
 // Output handling helpers (pure — unit-testable)
 // ---------------------------------------------------------------------------
 

@@ -44,9 +44,11 @@ deleted surfaces from earlier products. Do not resume until rewritten for the St
 1. **Never edit, print, or exfiltrate secrets.** `.env*`, Stripe keys, Convex deploy keys,
    `SERVER_SHARED_SECRET`, `OPENROUTER_API_KEY` are off-limits to display; manage via
    `vercel env` / `npx convex env set` with piped values only.
-2. **Never push to `main` directly.** Changes land via PR branches; humans promote to main.
-   Human-directed sessions may deploy a branch to Vercel prod while main stays clean until
-   merge.
+2. **Never push to `main` directly — but always ship.** Changes land via PR branches;
+   once fully verified (typecheck, lint, tests, build, runtime e2e, review pass) merge the
+   PR to main and deploy to production without asking (founder directive, 2026-07-13:
+   "should always push to prod"). Vercel deploys prod from main; run `npx convex deploy`
+   for backend changes. Unverified or failing work never ships.
 3. **Never post to external platforms** (X, HN, Reddit, Discord, email) on the user's
    behalf, and never reveal the founder's identity. Marketing copy is generated into
    `marketing/` for the founder to fire manually. No astroturfing/sockpuppets, ever.

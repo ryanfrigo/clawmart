@@ -20,6 +20,7 @@ import {
   Palette,
   RefreshCw,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
@@ -342,7 +343,7 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
     );
   }
 
-  const { company, runs, events, assets } = state;
+  const { company, runs, events, assets, waitlistCount } = state;
   const isLive = company.status === "live";
   const canRebuild = company.status === "live" || company.status === "failed";
 
@@ -363,6 +364,15 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
               {company.name}
             </h1>
             <StatusBadge status={company.status} />
+            {(isLive || waitlistCount > 0) && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wide text-muted-foreground"
+                title="Emails collected by this company's public page"
+              >
+                <Users className="size-3" aria-hidden="true" />
+                {waitlistCount > 1000 ? "1,000+" : waitlistCount} on the waitlist
+              </span>
+            )}
           </div>
           {company.tagline && (
             <p className="mt-1 text-[14.5px] italic text-muted-foreground">{company.tagline}</p>

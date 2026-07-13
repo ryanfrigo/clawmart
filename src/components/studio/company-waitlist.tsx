@@ -10,15 +10,16 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Email-capture CTA for a public company page. Writes to the shared waitlist
- * table with source "c/<slug>" so demand is attributable per concept company.
+ * table keyed by the caller-provided source ("co:<companyId>" — immutable, so
+ * demand attribution survives slug changes and company deletion cleanup).
  */
 export function CompanyWaitlist({
-  slug,
+  source,
   cta = "Join the waitlist",
   accent,
   ink,
 }: {
-  slug: string;
+  source: string;
   cta?: string;
   accent: string;
   ink: string;
@@ -36,7 +37,7 @@ export function CompanyWaitlist({
     }
     setState("busy");
     try {
-      await join({ email: value, source: `c/${slug}` });
+      await join({ email: value, source });
       setState("done");
     } catch {
       setState("error");

@@ -20,6 +20,7 @@ import {
   internalMutation,
   internalQuery,
   type MutationCtx,
+  type QueryCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -129,6 +130,65 @@ async function beginBuild(ctx: MutationCtx, company: Doc<"companies">): Promise<
   });
 }
 
+// "Surprise me" idea generation — cheap, but still bounded.
+const SURPRISE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const MAX_SURPRISES_PER_DAY_USER = 15;
+const MAX_SURPRISES_PER_DAY_GLOBAL = 300;
+
+/** Called by agents.surpriseIdea before its model call. Throws rate_limited. */
+export const bumpSurpriseLimit = internalMutation({
+  args: { userId: v.string() },
+  handler: async (ctx, args): Promise<null> => {
+    await bumpRateLimit(
+      ctx,
+      "surprise:global",
+      SURPRISE_WINDOW_MS,
+      MAX_SURPRISES_PER_DAY_GLOBAL
+    );
+    await bumpRateLimit(
+      ctx,
+      `surprise:user:${args.userId}`,
+      SURPRISE_WINDOW_MS,
+      MAX_SURPRISES_PER_DAY_USER
+    );
+    return null;
+  },
+});
+
+/**
+ * Signups collected by a company's public page — the market-fit signal.
+ *
+ * Attribution is keyed by the immutable company id (`co:<id>`), so it survives
+ * slug changes and can never be inherited by a later company that reuses a
+ * freed slug. Rows written before 2026-07-13 used `c/<slug>` — still counted
+ * for continuity (and deleted with the company, so they can't leak either).
+ * Bounded reads: a page with >1000 signups reports 1001 and the UI shows
+ * "1,000+" — an unbounded .collect() would hit Convex's per-query read limit
+ * for exactly the most successful companies.
+ */
+const WAITLIST_COUNT_CAP = 1000;
+
+function waitlistSources(companyId: Id<"companies">, slug: string): string[] {
+  return [`co:${companyId}`, `c/${slug}`];
+}
+
+async function waitlistCountFor(
+  ctx: { db: QueryCtx["db"] },
+  companyId: Id<"companies">,
+  slug: string
+): Promise<number> {
+  let total = 0;
+  for (const source of waitlistSources(companyId, slug)) {
+    const rows = await ctx.db
+      .query("waitlist")
+      .withIndex("by_source", (q) => q.eq("source", source))
+      .take(WAITLIST_COUNT_CAP + 1 - total);
+    total += rows.length;
+    if (total > WAITLIST_COUNT_CAP) return total;
+  }
+  return total;
+}
+
 // ---------------------------------------------------------------------------
 // Public mutations
 // ---------------------------------------------------------------------------
@@ -193,9 +253,9 @@ export const listMine = query({
       .query("companies")
       .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
       .collect();
-    return rows
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .map((c) => ({
+    const sorted = rows.sort((a, b) => b.createdAt - a.createdAt);
+    return Promise.all(
+      sorted.map(async (c) => ({
         _id: c._id,
         slug: c.slug,
         name: c.name,
@@ -203,7 +263,11 @@ export const listMine = query({
         status: c.status,
         idea: c.idea,
         createdAt: c.createdAt,
-      }));
+        // Always computed: a failed-rebuild page keeps serving (and keeps
+        // collecting signups) — the owner must never see a false zero.
+        waitlistCount: await waitlistCountFor(ctx, c._id, c.slug),
+      }))
+    );
   },
 });
 
@@ -245,6 +309,7 @@ export const buildState = query({
       runs: PIPELINE.map((key) => runs.find((r) => r.agentKey === key) ?? null),
       events: events.sort((a, b) => a.ts - b.ts).slice(-200),
       assets: Object.fromEntries(assets.map((a) => [a.kind, a.json])),
+      waitlistCount: await waitlistCountFor(ctx, company._id, company.slug),
     };
   },
 });
@@ -277,6 +342,9 @@ export const getPublicBySlug = query({
       status: company.status,
       landing: byKind["landing"] ?? null,
       brand: byKind["brand"] ?? null,
+      // Stable key for waitlist attribution (survives slug changes; already
+      // non-secret — it appears in owner URLs and grants no access).
+      companyId: company._id,
     };
   },
 });
@@ -304,6 +372,15 @@ export const remove = mutation({
       .withIndex("by_company_kind", (q) => q.eq("companyId", args.companyId))
       .collect();
     for (const row of assets) await ctx.db.delete(row._id);
+    // Waitlist rows too — a freed slug must never hand this company's signup
+    // count to whoever claims the slug next (no-fabricated-counters rule).
+    for (const source of waitlistSources(args.companyId, company.slug)) {
+      const signups = await ctx.db
+        .query("waitlist")
+        .withIndex("by_source", (q) => q.eq("source", source))
+        .collect();
+      for (const row of signups) await ctx.db.delete(row._id);
+    }
     await ctx.db.delete(args.companyId);
     return null;
   },
@@ -457,7 +534,13 @@ export const completeStep = internalMutation({
         stepIndex: nextIndex,
       });
     } else {
-      await ctx.db.patch(args.companyId, { status: "live", updatedAt: now });
+      // Going live locks the slug unconditionally — even if the brand step
+      // never produced a usable name, a shared /c/ URL must never change.
+      await ctx.db.patch(args.companyId, {
+        status: "live",
+        slugLocked: true,
+        updatedAt: now,
+      });
       await ctx.db.insert("agentEvents", {
         companyId: args.companyId,
         agentKey: key,
