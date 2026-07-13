@@ -35,10 +35,18 @@ const BUILD_WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_BUILDS_PER_DAY_GLOBAL = 40;
 const MAX_BUILDS_PER_DAY_USER = 10;
 
-async function requireUser(ctx: { auth: { getUserIdentity(): Promise<{ subject: string } | null> } }) {
+async function requireIdentity(ctx: {
+  auth: {
+    getUserIdentity(): Promise<{ subject: string; email?: string } | null>;
+  };
+}) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new ConvexError("unauthenticated");
-  return identity.subject;
+  return identity;
+}
+
+async function requireUser(ctx: Parameters<typeof requireIdentity>[0]) {
+  return (await requireIdentity(ctx)).subject;
 }
 
 /** Same sliding-window pattern as purchases.createPending. */
@@ -196,7 +204,8 @@ async function waitlistCountFor(
 export const create = mutation({
   args: { idea: v.string() },
   handler: async (ctx, args): Promise<{ companyId: Id<"companies">; slug: string }> => {
-    const ownerId = await requireUser(ctx);
+    const identity = await requireIdentity(ctx);
+    const ownerId = identity.subject;
 
     const idea = args.idea.trim();
     if (idea.length < IDEA_MIN) throw new ConvexError("idea_too_short");
@@ -214,6 +223,10 @@ export const create = mutation({
     const slug = await uniqueSlug(ctx, `co-${slugSuffix()}${slugSuffix()}`);
     const companyId = await ctx.db.insert("companies", {
       ownerId,
+      // For the morning digest. Present only when the Clerk JWT template
+      // exposes the email claim; the digest quietly skips companies without.
+      ownerEmail:
+        typeof identity.email === "string" ? identity.email : undefined,
       slug,
       idea,
       name: "Unnamed company",
@@ -231,10 +244,17 @@ export const create = mutation({
 export const rebuild = mutation({
   args: { companyId: v.id("companies") },
   handler: async (ctx, args): Promise<null> => {
-    const ownerId = await requireUser(ctx);
+    const identity = await requireIdentity(ctx);
     const company = await ctx.db.get(args.companyId);
-    if (!company || company.ownerId !== ownerId) throw new ConvexError("not_found");
+    if (!company || company.ownerId !== identity.subject) {
+      throw new ConvexError("not_found");
+    }
     if (company.status === "building") throw new ConvexError("build_in_progress");
+    // Keep the digest address current — ownerEmail is otherwise a frozen
+    // snapshot from creation, and users do change their Clerk email.
+    if (typeof identity.email === "string" && identity.email !== company.ownerEmail) {
+      await ctx.db.patch(args.companyId, { ownerEmail: identity.email });
+    }
     await beginBuild(ctx, company);
     return null;
   },
@@ -568,8 +588,8 @@ export const failStaleBuilds = internalMutation({
     const building = (
       await ctx.db
         .query("companies")
-        .filter((q) => q.eq(q.field("status"), "building"))
-        .collect()
+        .withIndex("by_status", (q) => q.eq("status", "building"))
+        .take(500)
     ).filter((c) => c.updatedAt < cutoff);
 
     for (const company of building) {
@@ -607,6 +627,177 @@ export const failStaleBuilds = internalMutation({
       });
     }
     return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Internal — daily CEO check-in (see convex/checkins.ts + crons.ts)
+// ---------------------------------------------------------------------------
+
+/** Re-run guard + cost cap: at most this many check-ins per daily cron tick. */
+const CHECKIN_MIN_GAP_MS = 20 * 60 * 60 * 1000;
+const CHECKIN_BATCH_MAX = 50;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Companies due a check-in — IDs ONLY, one small indexed read. Per-company
+ * stats are fetched by separate queries (companyCheckinStats) so no single
+ * Convex query aggregates unbounded reads across companies. Least-recently
+ * checked first, so the daily cap rotates instead of starving newer companies.
+ */
+export const dueCheckins = internalQuery({
+  args: {},
+  handler: async (ctx): Promise<Id<"companies">[]> => {
+    const now = Date.now();
+    const live = await ctx.db
+      .query("companies")
+      .withIndex("by_status", (q) => q.eq("status", "live"))
+      .take(500);
+    return live
+      .filter((c) => (c.lastCheckinAt ?? 0) < now - CHECKIN_MIN_GAP_MS)
+      .sort((a, b) => (a.lastCheckinAt ?? 0) - (b.lastCheckinAt ?? 0))
+      .slice(0, CHECKIN_BATCH_MAX)
+      .map((c) => c._id);
+  },
+});
+
+/** One company's check-in inputs — its own bounded query. Null when not due. */
+export const companyCheckinStats = internalQuery({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const c = await ctx.db.get(args.companyId);
+    if (!c || c.status !== "live") return null;
+    if ((c.lastCheckinAt ?? 0) >= now - CHECKIN_MIN_GAP_MS) return null;
+
+    const totalSignups = await waitlistCountFor(ctx, c._id, c.slug);
+    let newSignups = 0;
+    for (const source of waitlistSources(c._id, c.slug)) {
+      const recent = await ctx.db
+        .query("waitlist")
+        .withIndex("by_source", (q) => q.eq("source", source))
+        .order("desc") // creation order — recent rows first, tiny scans
+        .take(WAITLIST_COUNT_CAP);
+      newSignups += recent.filter((r) => r.createdAt > now - DAY_MS).length;
+    }
+    const plan = await ctx.db
+      .query("companyAssets")
+      .withIndex("by_company_kind", (q) =>
+        q.eq("companyId", c._id).eq("kind", "strategist")
+      )
+      .first();
+    let positioning = c.tagline ?? c.idea.slice(0, 200);
+    try {
+      const parsed = plan ? (JSON.parse(plan.json) as { positioning?: string }) : null;
+      if (parsed && typeof parsed.positioning === "string") {
+        positioning = parsed.positioning.slice(0, 600);
+      }
+    } catch {
+      // fall back to tagline/idea
+    }
+    return {
+      name: c.name,
+      slug: c.slug,
+      positioning,
+      totalSignups,
+      newSignups,
+    };
+  },
+});
+
+/**
+ * Companies whose check-in landed within the digest window, with the note —
+ * consumed by checkins.sendDigests. Bounded, indexed.
+ */
+export const digestRows = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const DIGEST_WINDOW_MS = 3 * 60 * 60 * 1000;
+    const live = await ctx.db
+      .query("companies")
+      .withIndex("by_status", (q) => q.eq("status", "live"))
+      .take(500);
+    const fresh = live.filter(
+      (c) => c.ownerEmail && (c.lastCheckinAt ?? 0) > now - DIGEST_WINDOW_MS
+    );
+    const rows: Array<{
+      ownerEmail: string;
+      name: string;
+      slug: string;
+      note: string;
+      totalSignups: number;
+      newSignups: number;
+    }> = [];
+    for (const c of fresh) {
+      // The check-in note is the most recent "ceo" event — posted moments
+      // ago, so this desc scan terminates almost immediately.
+      const events = await ctx.db
+        .query("agentEvents")
+        .withIndex("by_company", (q) => q.eq("companyId", c._id))
+        .order("desc")
+        .take(25);
+      const note = events.find((e) => e.agentKey === "ceo")?.text;
+      if (!note) continue;
+      const totalSignups = await waitlistCountFor(ctx, c._id, c.slug);
+      let newSignups = 0;
+      for (const source of waitlistSources(c._id, c.slug)) {
+        const recent = await ctx.db
+          .query("waitlist")
+          .withIndex("by_source", (q) => q.eq("source", source))
+          .order("desc")
+          .take(WAITLIST_COUNT_CAP);
+        newSignups += recent.filter((r) => r.createdAt > now - DAY_MS).length;
+      }
+      rows.push({
+        ownerEmail: c.ownerEmail!,
+        name: c.name,
+        slug: c.slug,
+        note,
+        totalSignups,
+        newSignups,
+      });
+    }
+    return rows;
+  },
+});
+
+/** At-most-one digest email per owner per day, even across overlapping runs. */
+export const claimDigestSend = internalMutation({
+  args: { email: v.string() },
+  handler: async (ctx, args): Promise<{ ok: boolean }> => {
+    try {
+      await bumpRateLimit(ctx, `digest:${args.email}`, 20 * 60 * 60 * 1000, 1);
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
+  },
+});
+
+export const recordCheckin = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    focus: v.string(),
+    note: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ recorded: boolean }> => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) return { recorded: false };
+    const now = Date.now();
+    // Idempotency: a re-scheduled/replayed run never double-posts a day.
+    if ((company.lastCheckinAt ?? 0) > now - CHECKIN_MIN_GAP_MS) {
+      return { recorded: false };
+    }
+    await ctx.db.patch(args.companyId, { lastCheckinAt: now });
+    await ctx.db.insert("agentEvents", {
+      companyId: args.companyId,
+      agentKey: "ceo",
+      kind: "output",
+      text: `Daily check-in — ${args.focus.slice(0, 60)}: ${args.note.slice(0, 500)}`,
+      ts: now,
+    });
+    return { recorded: true };
   },
 });
 

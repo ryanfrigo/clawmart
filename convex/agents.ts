@@ -32,7 +32,8 @@ interface OpenRouterResult {
   tokensOut?: number;
 }
 
-async function callOpenRouter(
+// Shared by the pipeline, surpriseIdea, and the daily check-ins (checkins.ts).
+export async function callOpenRouter(
   model: string,
   messages: ChatMessage[],
   maxTokens: number,

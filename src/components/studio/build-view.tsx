@@ -43,9 +43,10 @@ const AGENTS = [
   { key: "marketing", title: "Marketing Lead", icon: Megaphone, blurb: "Launch kit" },
 ] as const;
 
-const AGENT_TITLE: Record<string, string> = Object.fromEntries(
-  AGENTS.map((a) => [a.key, a.title])
-);
+const AGENT_TITLE: Record<string, string> = {
+  ...Object.fromEntries(AGENTS.map((a) => [a.key, a.title])),
+  ceo: "CEO", // daily check-ins land in the feed after the build
+};
 
 const TABS = [
   { id: "plan", label: "Plan", kind: "strategist" },

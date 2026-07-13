@@ -3,6 +3,8 @@ import {
   AGENTS,
   FALLBACK_IDEAS,
   PIPELINE,
+  ceoCheckinMessages,
+  escapeHtml,
   extractJson,
   slugify,
   slugSuffix,
@@ -74,6 +76,31 @@ describe("surprise me", () => {
       expect(idea.trim().length).toBeGreaterThanOrEqual(20); // IDEA_MIN
       expect(idea.length).toBeLessThanOrEqual(500);
     }
+  });
+});
+
+describe("escapeHtml", () => {
+  it("neutralizes markup from model/user strings", () => {
+    expect(escapeHtml(`<a href="https://evil.example">Verify</a> & 'more'`)).toBe(
+      "&lt;a href=&quot;https://evil.example&quot;&gt;Verify&lt;/a&gt; &amp; &#39;more&#39;"
+    );
+  });
+  it("passes plain text through", () => {
+    expect(escapeHtml("BakeCost got 3 signups.")).toBe("BakeCost got 3 signups.");
+  });
+});
+
+describe("ceo check-in", () => {
+  it("prompt forbids invented metrics and demands the JSON contract", () => {
+    const messages = ceoCheckinMessages({
+      name: "Acme",
+      positioning: "Widgets for welders",
+      totalSignups: 12,
+      newSignups: 3,
+    });
+    expect(messages[0].content).toContain("ONLY the numbers provided");
+    expect(messages[0].content).toContain('{"focus"');
+    expect(messages[1].content).toContain("12 total signups, 3 in the last 24h");
   });
 });
 
