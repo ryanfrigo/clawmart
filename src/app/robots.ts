@@ -1,10 +1,11 @@
 import { MetadataRoute } from "next";
 
 /**
- * Public pages are open to everyone, including AI answer engines — we want
- * packs to be discoverable. Private tokened download pages are excluded.
+ * Public pages are open to everyone, including AI answer engines. Private
+ * surfaces are excluded: tokened download pages, the API, and in-progress
+ * Studio builds.
  */
-const DISALLOW = ["/purchase/", "/api/"];
+const DISALLOW = ["/purchase/", "/api/", "/studio/"];
 
 export default function robots(): MetadataRoute.Robots {
   return {

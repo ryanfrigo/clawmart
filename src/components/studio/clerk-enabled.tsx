@@ -1,10 +1,15 @@
 /**
- * Whether Clerk is configured in this build. Studio surfaces must check this
- * before rendering Clerk components — <SignedIn>/<SignedOut>/<SignInButton>
- * throw without a ClerkProvider, and the provider tree deliberately degrades
- * to plain Convex when the publishable key is absent (see convex-provider).
+ * Whether Clerk UI can safely render in this build. Studio surfaces must
+ * check this before rendering Clerk components — <SignedIn>/<SignedOut>/
+ * <SignInButton> throw without a ClerkProvider, and ConvexClientProvider only
+ * mounts ClerkProvider when BOTH the Clerk publishable key and a real Convex
+ * URL exist (the no-Convex "demo mode" renders bare children). Gate on both.
  */
-export const clerkEnabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+export const clerkEnabled =
+  !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
+  !!convexUrl &&
+  !convexUrl.includes("placeholder");
 
 export function StudioUnavailable() {
   return (

@@ -275,7 +275,9 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
     try {
       await removeCompany({ companyId });
       toast.success("Company deleted.");
-      router.push("/studio");
+      // Straight to the companies grid on the homepage — /studio is now a
+      // redirect stub and would bounce the user to the marketing hero.
+      router.push("/#companies");
     } catch {
       toast.error("Couldn't delete the company. Please try again.");
       setDeleting(false);
@@ -330,7 +332,7 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
           It may have been removed, or it belongs to another account.
         </p>
         <Link
-          href="/studio"
+          href="/"
           className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <ArrowLeft className="size-4" />
@@ -350,7 +352,7 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <Link
-            href="/studio"
+            href="/"
             className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" />

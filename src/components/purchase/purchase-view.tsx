@@ -12,7 +12,6 @@ import {
 import { api } from "../../../convex/_generated/api";
 import { titleForSlug, isBundle } from "@/lib/packs";
 import { InstallSteps } from "@/components/site/install-steps";
-import { WaitlistForm } from "@/components/home/waitlist-form";
 import { SKILLS_PATH, SUPPORT_EMAIL } from "@/components/site/constants";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -60,10 +59,10 @@ export function PurchaseView({ token }: { token: string }) {
           we&apos;ll sort it out.
         </p>
         <Link
-          href="/packs"
+          href="/"
           className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          Browse packs
+          Back to clawmart.co
           <ArrowRight className="size-4" />
         </Link>
       </Shell>
@@ -87,22 +86,17 @@ export function PurchaseView({ token }: { token: string }) {
           This order didn&apos;t go through.
         </h1>
         <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
-          Nothing was charged. Payments can fail for all sorts of harmless
-          reasons — you can start over any time.
+          Nothing was charged. The packs storefront has since closed, so this
+          order can&apos;t be retried — if you believe you were charged anyway,
+          email {SUPPORT_EMAIL} and we&apos;ll make it right.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
-            href={`/packs/${purchase.slug}`}
+            href="/"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            Back to clawmart.co
             <ArrowRight className="size-4" />
-          </Link>
-          <Link
-            href="/packs"
-            className="inline-flex items-center justify-center rounded-xl border border-border px-5 py-2.5 text-[14px] font-medium transition-colors hover:bg-accent"
-          >
-            Browse all packs
           </Link>
         </div>
       </Shell>
@@ -186,19 +180,6 @@ export function PurchaseView({ token }: { token: string }) {
         </p>
         <div className="mt-6">
           <InstallSteps compact />
-        </div>
-      </div>
-
-      {/* waitlist */}
-      <div className="mt-12 border-t border-border pt-8">
-        <h2 className="font-display text-2xl tracking-tight">
-          Want to hear about new packs?
-        </h2>
-        <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
-          We&apos;ll email you only when a new pack ships. Nothing else.
-        </p>
-        <div className="mt-4">
-          <WaitlistForm source="purchase" />
         </div>
       </div>
 

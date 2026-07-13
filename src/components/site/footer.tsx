@@ -1,24 +1,14 @@
 import Link from "next/link";
 import { ClawMark, Wordmark } from "@/components/site/logo";
-import {
-  NON_AFFILIATION,
-  OPENCLAW_URL,
-  SUPPORT_EMAIL,
-} from "@/components/site/constants";
+import { NON_AFFILIATION, SUPPORT_EMAIL } from "@/components/site/constants";
 
-const columns: Array<{ heading: string; links: Array<{ label: string; href: string; external?: boolean }> }> = [
+const columns: Array<{ heading: string; links: Array<{ label: string; href: string }> }> = [
   {
-    heading: "Store",
+    heading: "Studio",
     links: [
-      { label: "All packs", href: "/packs" },
-      { label: "All-Access — $99", href: "/packs#all-access" },
+      { label: "How it works", href: "/#how" },
       { label: "About", href: "/about" },
-      { label: "FAQ", href: "/#faq" },
     ],
-  },
-  {
-    heading: "OpenClaw",
-    links: [{ label: "openclaw/openclaw", href: OPENCLAW_URL, external: true }],
   },
   {
     heading: "Legal",
@@ -41,12 +31,11 @@ export function SiteFooter() {
               <Wordmark />
             </div>
             <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-              Premium, curated skill packs for OpenClaw — the self-hosted
-              personal AI assistant. Buy a pack, drop it into your skills
-              folder, and your assistant can do the job.
+              Describe a company. A founding team of AI agents drafts it live —
+              plan, brand, product spec, public page, launch kit.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-10 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-10">
             {columns.map((col) => (
               <div key={col.heading}>
                 <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
@@ -55,23 +44,12 @@ export function SiteFooter() {
                 <ul className="mt-3 space-y-2">
                   {col.links.map((l) => (
                     <li key={l.href}>
-                      {l.external ? (
-                        <a
-                          href={l.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[13px] text-foreground/80 transition-colors hover:text-foreground"
-                        >
-                          {l.label}
-                        </a>
-                      ) : (
-                        <Link
-                          href={l.href}
-                          className="text-[13px] text-foreground/80 transition-colors hover:text-foreground"
-                        >
-                          {l.label}
-                        </Link>
-                      )}
+                      <Link
+                        href={l.href}
+                        className="text-[13px] text-foreground/80 transition-colors hover:text-foreground"
+                      >
+                        {l.label}
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -80,9 +58,10 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="mt-12 border-t border-border pt-6">
-          <p className="text-[12px] leading-relaxed text-muted-foreground">
-            {NON_AFFILIATION} &ldquo;OpenClaw&rdquo; is used nominatively to
-            describe the assistant these packs are built for.
+          {/* Legacy pack delivery/refunds still reference OpenClaw by name, so
+              the binding non-affiliation disclosure stays site-wide. */}
+          <p className="text-[12px] leading-relaxed text-muted-foreground/80">
+            {NON_AFFILIATION}
           </p>
           <p className="mt-2 text-[12px] text-muted-foreground">
             © {new Date().getFullYear()} Clawmart 🦞

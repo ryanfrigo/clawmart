@@ -152,12 +152,18 @@ function CompanyGrid() {
   );
 }
 
-/** Auth-gated action area for /studio: sign-in CTA, create form, and the grid. */
+/** Auth-gated action area for the homepage: sign-in CTA, create form, grid. */
 export function StudioLauncher() {
+  // Gate BEFORE any hooks: in no-Convex/no-Clerk environments there is no
+  // ConvexProvider, and useQuery would throw. clerkEnabled is a build-time
+  // constant, so this early return is stable across renders.
+  if (!clerkEnabled) return <StudioUnavailable />;
+  return <StudioLauncherInner />;
+}
+
+function StudioLauncherInner() {
   const companies = useQuery(api.companies.listMine, {});
   const atLimit = Array.isArray(companies) && companies.length >= 3;
-
-  if (!clerkEnabled) return <StudioUnavailable />;
 
   return (
     <>
@@ -180,7 +186,7 @@ export function StudioLauncher() {
         <div className="rounded-2xl border border-border bg-card/50 p-6 sm:p-8">
           <CreateForm atLimit={atLimit} />
         </div>
-        <div className="mt-14">
+        <div id="companies" className="mt-14 scroll-mt-20">
           <div className="flex items-baseline justify-between">
             <h2 className="font-display text-3xl tracking-tight">Your companies</h2>
             <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">

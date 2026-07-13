@@ -285,6 +285,30 @@ export const expirePending = internalMutation({
 });
 
 /**
+ * The crypto (USDC) rail was removed in the 2026-07-12 pivot, taking with it
+ * the only pending->paid verification path for crypto orders. Any crypto row
+ * still pending can never clear, so retire it — the delivery page then shows
+ * the honest "storefront closed, email support" state instead of spinning on
+ * "Confirming your payment…" forever. (No crypto order ever completed.)
+ */
+export const expireStaleCryptoPending = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<null> => {
+    const cutoff = Date.now() - PENDING_RECONCILE_MS;
+    const rows = await ctx.db
+      .query("purchases")
+      .filter((q) => q.eq(q.field("status"), "pending_payment"))
+      .collect();
+    for (const row of rows) {
+      if (row.paymentMethod === "crypto" && row.createdAt < cutoff) {
+        await ctx.db.patch(row._id, { status: "failed" });
+      }
+    }
+    return null;
+  },
+});
+
+/**
  * Reconcile pending_payment rows against Stripe — the backstop for a webhook
  * that never arrived. Uses the Stripe REST API directly (raw fetch works in the
  * Convex runtime; STRIPE_SECRET_KEY lives in Convex env for this). Opt-in: if
@@ -296,6 +320,10 @@ export const expirePending = internalMutation({
 export const reconcilePending = internalAction({
   args: {},
   handler: async (ctx): Promise<null> => {
+    // Crypto retirement runs regardless of Stripe config — it has no
+    // dependency on the Stripe key.
+    await ctx.runMutation(internal.purchases.expireStaleCryptoPending, {});
+
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) return null; // reconciliation is opt-in; webhook is primary
     const pending = await ctx.runQuery(internal.purchases.stalePending, {});

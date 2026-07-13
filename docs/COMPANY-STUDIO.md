@@ -1,14 +1,23 @@
 # Company Studio — build contract
 
-Clawmart's second surface (alongside the packs storefront): a Polsia-style studio where a
-user describes a company or SaaS idea and a **founding team of AI agents** drafts the whole
-company — positioning, brand, product spec, a live landing page, and a launch marketing kit —
-while the user watches the build happen in real time.
+Clawmart's product — the only surface since the 2026-07-12 pivot: a Polsia-style studio
+where a user describes a company or SaaS idea and a **founding team of AI agents** drafts the
+whole company — positioning, brand, product spec, a live landing page, and a launch marketing
+kit — while the user watches the build happen in real time.
 
 Reference point: [Polsia](https://polsia.com) ("AI that runs your company while you sleep").
 Where Polsia hides the work behind a nightly loop and a morning email, Clawmart Studio shows
 a **live agent feed** and ships a **public company page instantly**. Honest scope: we draft
 and host company assets; we do not claim to autonomously run a business.
+
+## 2026-07-12 pivot
+
+The Studio went from second surface to the whole product:
+
+- The packs storefront (catalog, pack pages, checkout) is removed from the site.
+- The crypto rail (USDC-on-Base checkout) is removed.
+- Legacy purchase delivery is kept: tokened `/api/download/[token]` links keep serving past
+  pack purchases, and the 14-day refund is still honored (support@clawmart.co).
 
 ## Infrastructure decision (no EC2)
 
@@ -68,15 +77,18 @@ keeps earlier assets. Last step flips the company `live`.
 
 Clerk (already installed; keys already in env). `ConvexProviderWithClerk` on the client,
 `convex/auth.config.ts` with the Clerk issuer domain, `clerkMiddleware` in Next. Studio
-routes are signed-in only; `/c/[slug]` is public. Packs checkout stays guest-only.
+routes are signed-in only; `/c/[slug]` is public.
 
 ## Surfaces
 
-- `/studio` — pitch + create form + "my companies"
-- `/studio/[id]` — live build feed + output tabs (plan / brand / product / landing preview /
-  marketing kit)
-- `/c/[slug]` — public generated landing page; email-capture CTA writes to the existing
-  `waitlist` table (`source: "c/<slug>"`); footer credits "Built with Clawmart Studio"
+- `/` — **is** the Studio: pitch + create form + "my companies"
+- `/studio` — redirects home
+- `/studio/[id]` — build detail: live build feed + output tabs (plan / brand / product /
+  landing preview / marketing kit)
+- `/c/[slug]` — standalone, chrome-free company site (lives outside the `(site)` layout
+  group — no SiteNav/SiteFooter) with per-company OG images; email-capture CTA writes to
+  the existing `waitlist` table (`source: "c/<slug>"`); footer credits "Built with
+  Clawmart Studio"
 
 ## Guardrails
 
@@ -89,5 +101,4 @@ routes are signed-in only; `/c/[slug]` is public. Packs checkout stays guest-onl
 ## v1 non-goals
 
 Deploying user apps to their own infra, ad-spend management, revenue share, recurring
-autonomous runs, payments for the studio itself (free tier validates demand first;
-pack sales remain the revenue line).
+autonomous runs, payments for the studio itself (free tier validates demand first).

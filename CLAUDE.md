@@ -1,53 +1,54 @@
 # Clawmart
 
-Clawmart is a storefront of **premium skill packs for [OpenClaw](https://github.com/openclaw/openclaw)** —
-the self-hosted personal AI assistant. OpenClaw's free registry (ClawHub) offers à-la-carte
-skills; clawmart sells the **curated, assembled, ready-to-run** layer: multi-skill packs for
-one job (AI SDR, E-Commerce Ops, Personal Chief of Staff, Content Engine), built to the
-OpenClaw AgentSkills spec, delivered as a gated zip download. Guest checkout, 14-day refund.
+Clawmart is **Clawmart Studio** — a Polsia-style product where a user describes a company or
+SaaS idea and a **founding team of five AI agents** (Strategist, Brand, Product, Landing,
+Marketing) drafts the whole company live: plan, brand, product spec, a standalone public
+landing page at `/c/[slug]`, and a launch kit. The user watches the build happen in a
+real-time agent feed. Outputs are honestly labeled AI drafts — we never claim to run a
+business autonomously.
 
-Product spec + architecture: `docs/PACKS-BUILD-CONTRACT.md`. Go-live: `docs/FLIP-TO-LIVE.md`.
-Catalog source of truth: `src/lib/packs.ts`. Distribution: `marketing/`.
+Product spec + architecture: `docs/COMPANY-STUDIO.md`.
 
-**North-star metric:** weekly Stripe net revenue (pack sales; later, more packs / a bundle sub).
-**Proxy metrics:** pack-page views, page→checkout conversion, waitlist signups.
+**North-star metric:** activated builders → weekly Stripe net revenue once the Studio
+monetizes.
+**Proxy metrics:** companies created, waitlist signups per company page.
 
 ## Stack
 
 - Next.js 16 App Router · React 19 · TypeScript · Tailwind 4 · shadcn/ui
-- Convex — source of truth (`purchases`, `rateLimits`, `waitlist`). A purchase is Stripe
-  Checkout → a signature-verified idempotent Convex httpAction webhook (`/stripe/webhook` on
-  the `.site` URL) → `paid` → gated download. **No LLM pipeline.**
-- Stripe Checkout, one-time payment, guest (`customer_creation: "always"`).
-- Pack file contents live under `packs/<slug>/**`, compiled into `src/lib/pack-contents.ts`
-  by `scripts/build-pack-contents.mjs` (runs via `prebuild`); `/api/download/[token]` serves
-  a jszip gated by purchase status.
-- Deployed on Vercel. Clerk is installed but unused (guest-only v1).
+- Convex — source of truth **and** agent runtime: pipeline steps run as Convex actions
+  chained via the scheduler (`companies`, `agentRuns`, `agentEvents`, `companyAssets`,
+  `waitlist`, `rateLimits`; legacy `purchases`).
+- LLM calls go through **OpenRouter only** — never Vercel AI Gateway. `OPENROUTER_API_KEY`
+  lives in Convex env (actions run there), never in the repo or client code.
+- Clerk auth: users sign in to create companies; `/c/[slug]` pages are public.
+- Legacy delivery: `/api/download/[token]` still serves past pack purchases and must keep
+  working; the storefront itself is removed.
+- Deployed on Vercel.
 
-## Trust rules (binding for ALL copy and code)
+## Trust rules (binding for ALL copy and code — including generated pages)
 
-- Nominative use of "OpenClaw" only; state non-affiliation in the footer; no OpenClaw logos.
-- Honest about what a pack is: curated, ready-to-install skill bundles built to the
-  AgentSkills spec, with a setup guide — adapt to your stack; not tested against your exact
-  environment. 14-day refund.
-- No fabricated stats, testimonials, ratings, or counters — anywhere, ever.
+- No fabricated stats, testimonials, ratings, or user counts — anywhere, ever, **including
+  AI-generated company pages and launch kits** (agent prompts must forbid them).
+- Every generated page and asset is honestly labeled as an AI draft.
 - No "guaranteed results".
+- Legacy pack purchase links must never break.
 
 ## Autopilot
 
 The clawpilot loop is **PAUSED** (`autopilot-state/PAUSED`) — its guardrails/skills reference
-deleted surfaces from earlier products. Do not resume until rewritten for the packs product.
+deleted surfaces from earlier products. Do not resume until rewritten for the Studio product.
 
 ## Hard rules (apply to every Claude session in this repo)
 
 1. **Never edit, print, or exfiltrate secrets.** `.env*`, Stripe keys, Convex deploy keys,
-   `SERVER_SHARED_SECRET` are off-limits to display; manage via `vercel env` /
-   `npx convex env set` with piped values only.
+   `SERVER_SHARED_SECRET`, `OPENROUTER_API_KEY` are off-limits to display; manage via
+   `vercel env` / `npx convex env set` with piped values only.
 2. **Never push to `main` directly.** Changes land via PR branches; humans promote to main.
-   Human-directed sessions may deploy a branch to Vercel prod (as this build did) while main
-   stays clean until merge.
-3. **Never post to external platforms** (X, HN, Reddit, Discord, ClawHub, email) on the
-   user's behalf, and never reveal the founder's identity. Marketing copy is generated into
+   Human-directed sessions may deploy a branch to Vercel prod while main stays clean until
+   merge.
+3. **Never post to external platforms** (X, HN, Reddit, Discord, email) on the user's
+   behalf, and never reveal the founder's identity. Marketing copy is generated into
    `marketing/` for the founder to fire manually. No astroturfing/sockpuppets, ever.
 4. **Never move funds.** Refunds are executed by the founder in Stripe; code never refunds.
 5. **One change per autopilot tick** (~400-line ceiling). Human-directed sessions may exceed

@@ -21,9 +21,3 @@ export const SKILLS_PATH = "~/.openclaw/skills";
 /** Binding footer line — do not reword. */
 export const NON_AFFILIATION =
   "Clawmart is an independent storefront and is not affiliated with or endorsed by OpenClaw.";
-
-export const REFUND_LINE = "14-day refund on every pack — no questions asked.";
-
-/** One honest line about how packs relate to the free registry. */
-export const CLAWHUB_LINE =
-  "OpenClaw's ClawHub registry is free and à-la-carte. Clawmart sells the assembled, curated layer: multi-skill packs for one job, with a setup guide.";

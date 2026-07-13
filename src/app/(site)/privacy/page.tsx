@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { NON_AFFILIATION, SUPPORT_EMAIL } from "@/components/site/constants";
+import { SUPPORT_EMAIL } from "@/components/site/constants";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -27,93 +27,98 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-16 sm:px-6 sm:py-20">
       <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
-        Effective 2026-07-03
+        Effective 2026-07-12
       </p>
       <h1 className="mt-3 font-display text-4xl tracking-tight sm:text-5xl">
         Privacy Policy
       </h1>
       <P>
-        Short version: we collect the minimum needed to sell you a pack, deliver
-        the download, and prevent abuse. No ad trackers, no selling data, no
-        marketing email you didn&apos;t explicitly ask for.
+        Short version: we collect the minimum needed to run the Studio — your
+        account email, the ideas you submit, and the drafts we generate from
+        them. No ad trackers, no selling data, no marketing email you
+        didn&apos;t explicitly ask for.
       </P>
 
       <H2>What we collect, and why</H2>
       <ul className="mt-4 list-disc space-y-2.5 pl-5 text-[14.5px] leading-relaxed text-muted-foreground">
         <li>
-          <strong className="text-foreground">Nothing to browse.</strong> You can
-          read the whole site and view every pack without giving us anything —
-          no account, no signup.
+          <strong className="text-foreground">Nothing to browse.</strong> You
+          can read the site and view any public company page without giving us
+          anything — no account, no signup.
         </li>
         <li>
-          <strong className="text-foreground">Your email, only if you buy or
-          join the waitlist.</strong> Checkout is guest-only; Stripe collects your
-          email at payment and we use it solely to deliver your download link
-          (transactional email only). Waitlist emails are used solely to tell you
-          when a new pack ships.
+          <strong className="text-foreground">An account, to build.</strong>{" "}
+          Creating a company requires signing in, handled by Clerk. We store
+          your email and account identifier.
         </li>
         <li>
-          <strong className="text-foreground">A hashed IP address</strong> when
-          you start a checkout — used only for rate limiting. We store the hash,
-          not the address.
+          <strong className="text-foreground">Your ideas and the drafts.</strong>{" "}
+          The idea text you submit is sent via OpenRouter to AI model providers
+          to generate the drafts, and the generated drafts are stored with your
+          account. Don&apos;t include personal or confidential information in
+          an idea.
         </li>
         <li>
-          <strong className="text-foreground">Payment details never touch our
-          servers</strong> — Stripe processes the card end to end. We store a
-          Stripe session/payment reference and the pack you bought so we can
-          deliver the download and honor refunds.
+          <strong className="text-foreground">Company pages are public.</strong>{" "}
+          Everything on a generated /c/ page is visible to anyone with the
+          link.
         </li>
         <li>
-          <strong className="text-foreground">An account, only for the
-          Studio.</strong> Building a concept company requires signing in
-          (handled by Clerk); we store your email and the ideas you submit,
-          plus the AI-generated drafts. Idea text is sent to AI model providers
-          via OpenRouter to generate those drafts — don&apos;t include personal
-          or confidential information in an idea. Company pages you build are
-          public at their /c/ link.
+          <strong className="text-foreground">Waitlist emails, per company.</strong>{" "}
+          If you join the waitlist on a company page, we store your email with
+          that company. It&apos;s used solely in connection with that company
+          page — never for a Clawmart marketing list.
         </li>
       </ul>
+
+      <H2>Legacy pack purchases</H2>
+      <P>
+        Clawmart previously sold skill packs via Stripe guest checkout. We keep
+        those purchase records (a Stripe payment reference, the pack, and the
+        purchase email) so tokened download links keep working and refunds can
+        be honored. Payment details never touched our servers — Stripe
+        processed the card end to end.
+      </P>
 
       <H2>What we don&apos;t do</H2>
       <P>
         No advertising trackers or third-party analytics cookies. No selling or
-        renting data. No adding you to a newsletter because you bought something.
-        We don&apos;t receive or store what your OpenClaw assistant does with a
-        pack — the skills run entirely on your own machine.
+        renting data. No adding you to a newsletter because you signed up or
+        bought something.
       </P>
 
       <H2>Who processes data for us</H2>
       <ul className="mt-4 list-disc space-y-2 pl-5 text-[14.5px] leading-relaxed text-muted-foreground">
         <li>
-          <strong className="text-foreground">Stripe</strong> — payments and
-          receipts.
+          <strong className="text-foreground">Clerk</strong> — account sign-in.
         </li>
         <li>
           <strong className="text-foreground">Convex</strong> — our database
-          (purchases, waitlist, Studio companies).
-        </li>
-        <li>
-          <strong className="text-foreground">Clerk</strong> — Studio account
-          sign-in.
+          (companies, drafts, waitlist, legacy purchases).
         </li>
         <li>
           <strong className="text-foreground">OpenRouter</strong> — routes
-          Studio idea text to AI model providers to generate drafts.
+          idea text to AI model providers to generate drafts.
         </li>
         <li>
           <strong className="text-foreground">Vercel</strong> — hosting.
         </li>
         <li>
-          <strong className="text-foreground">Resend</strong> — sends the
-          download-delivery email, if email delivery is enabled.
+          <strong className="text-foreground">Stripe</strong> — legacy pack
+          purchases and receipts.
+        </li>
+        <li>
+          <strong className="text-foreground">Resend</strong> — transactional
+          email, if email delivery is enabled.
         </li>
       </ul>
 
       <H2>Retention and deletion</H2>
       <P>
-        We keep your purchase record so your tokened download link keeps working —
-        that&apos;s the product. Want your purchase record, email, or waitlist
-        entry deleted? Email{" "}
+        We keep legacy purchase records so tokened download links keep working,
+        and Studio data for as long as your account and companies exist. Want
+        your account data, companies, drafts, waitlist entry, or purchase
+        record deleted? Email{" "}
         <a
           href={`mailto:${SUPPORT_EMAIL}?subject=Data%20deletion`}
           className="text-lobster underline underline-offset-4"
@@ -131,7 +136,7 @@ export default function PrivacyPage() {
       </P>
 
       <p className="mt-12 border-t border-border pt-6 text-[12.5px] leading-relaxed text-muted-foreground">
-        {NON_AFFILIATION} See also the{" "}
+        See also the{" "}
         <Link href="/terms" className="underline underline-offset-4 hover:text-foreground">
           terms of service
         </Link>

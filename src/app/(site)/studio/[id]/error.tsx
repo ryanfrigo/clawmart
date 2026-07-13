@@ -28,7 +28,7 @@ export default function StudioBuildError({ reset }: { error: Error; reset: () =>
           Try again
         </button>
         <Link
-          href="/studio"
+          href="/"
           className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-5 text-[14px] font-medium transition-colors hover:bg-accent"
         >
           <ArrowLeft className="size-4" />

@@ -1,6 +1,5 @@
 import { cache } from "react";
-import type { Metadata } from "next";
-import Link from "next/link";
+import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "../../../../convex/_generated/api";
@@ -79,27 +78,53 @@ export async function generateMetadata({
   const company = await fetchCompany(slug);
   if (!company) return { title: "Company not found", robots: { index: false } };
   const title = company.tagline ? `${company.name} — ${company.tagline}` : company.name;
+  const description =
+    company.tagline ?? `${company.name} — an AI-drafted concept company built with Clawmart Studio.`;
   return {
-    title,
-    description:
-      company.tagline ?? `${company.name} — an AI-drafted concept company built with Clawmart Studio.`,
+    // Absolute: a standalone company site shouldn't inherit the "· Clawmart"
+    // template suffix from the root layout.
+    title: { absolute: title },
+    description,
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary_large_image" },
   };
 }
 
-/* ---------------- footer strip (required, honest) ---------------- */
+// Browser chrome (mobile address bar) matches the brand background so the
+// page reads as its own site. Defensive: brand JSON is model output.
+export async function generateViewport({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Viewport> {
+  const { slug } = await params;
+  const company = await fetchCompany(slug).catch(() => null);
+  const colors = obj(parse(company?.brand ?? null)?.colors);
+  const bg = colors.background;
+  const themeColor =
+    typeof bg === "string" && HEX.test(bg.trim()) ? bg.trim() : "#0a0e17";
+  return { themeColor };
+}
 
+/* ---------------- colophon strip (required, honest) ---------------- */
+
+// Styled as a standalone site's colophon, not clawmart chrome: one quiet
+// strip at the very bottom. The attribution + "not real yet" line must stay.
 function ConceptFooter() {
   return (
-    <footer className="border-t border-border/60 py-10">
-      <div className="mx-auto max-w-5xl px-5 text-center sm:px-6">
-        <p className="text-[13px] text-muted-foreground">
+    <footer className="mt-auto border-t border-border/50">
+      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-1.5 px-5 py-5 text-center sm:flex-row sm:gap-6 sm:px-6 sm:text-left">
+        <p className="text-[12px] leading-relaxed text-muted-foreground/80">
           An AI-drafted concept company — built with{" "}
-          <Link href="/studio" className="text-foreground underline underline-offset-4">
+          <a
+            href="https://clawmart.co"
+            className="underline underline-offset-4 transition-colors hover:text-foreground"
+          >
             Clawmart Studio
-          </Link>
+          </a>
           .
         </p>
-        <p className="mt-1.5 text-[12.5px] text-muted-foreground/80">
+        <p className="text-[12px] leading-relaxed text-muted-foreground/60">
           Not a real product yet. Join the waitlist to show demand.
         </p>
       </div>
@@ -123,8 +148,8 @@ export default async function CompanyPage({
   // assets keeps its page up even if a later rebuild fails mid-way.
   if (!company.landing) {
     return (
-      <>
-        <div className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-center justify-center px-5 py-24 text-center sm:px-6">
+      <div className="flex min-h-screen flex-col bg-background">
+        <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-5 py-24 text-center sm:px-6">
           <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-lobster">
             {company.status === "failed" ? "Build incomplete" : "Building"}
           </p>
@@ -138,7 +163,7 @@ export default async function CompanyPage({
           </p>
         </div>
         <ConceptFooter />
-      </>
+      </div>
     );
   }
 
@@ -160,7 +185,10 @@ export default async function CompanyPage({
   const finalCtaText = str(finalCta.cta) ?? "Join the waitlist";
 
   return (
-    <div style={{ "--co-primary": primary, "--co-accent": accent } as React.CSSProperties}>
+    <div
+      className="flex min-h-screen flex-col bg-background"
+      style={{ "--co-primary": primary, "--co-accent": accent } as React.CSSProperties}
+    >
       {/* ---------- Hero ---------- */}
       <section className="relative overflow-hidden border-b border-border/60">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
@@ -169,7 +197,8 @@ export default async function CompanyPage({
             style={{ backgroundColor: primary, opacity: 0.1 }}
           />
         </div>
-        <div className="relative mx-auto max-w-3xl px-5 pb-20 pt-24 text-center sm:px-6">
+        {/* No site nav above this hero — it carries its own top breathing room. */}
+        <div className="relative mx-auto max-w-3xl px-5 pb-20 pt-28 text-center sm:px-6 sm:pt-36">
           <p className="font-mono text-[12px] uppercase tracking-[0.22em]" style={{ color: accent }}>
             {company.name}
           </p>

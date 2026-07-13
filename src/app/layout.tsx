@@ -24,29 +24,29 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://clawmart.co"),
   title: {
-    default: "Clawmart — Premium skill packs for OpenClaw",
-    template: "%s · Clawmart",
+    default: "Clawmart Studio — your AI founding team",
+    template: "%s · Clawmart Studio",
   },
   description:
-    "Curated, ready-to-run skill packs for OpenClaw, the self-hosted personal AI assistant. Buy a pack, drop it into ~/.openclaw/skills, start a new session. 14-day refund.",
+    "Describe a company or SaaS idea and a founding team of five AI agents drafts it live: business plan, brand, product spec, a public landing page, and a launch kit. Free while we validate demand.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
     apple: "/favicon.svg",
   },
   openGraph: {
-    title: "Clawmart — Premium skill packs for OpenClaw",
+    title: "Clawmart Studio — your AI founding team",
     description:
-      "Make your OpenClaw assistant actually do the job. Curated packs of skills built to the AgentSkills spec, with a setup guide. Buy, download, install. 14-day refund.",
+      "Describe your company and watch a founding team of AI agents draft it live — plan, brand, product spec, a public landing page, and a launch kit. All outputs are AI-generated drafts.",
     url: "https://clawmart.co",
-    siteName: "Clawmart",
+    siteName: "Clawmart Studio",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clawmart — Premium skill packs for OpenClaw",
+    title: "Clawmart Studio — your AI founding team",
     description:
-      "Curated, ready-to-run skill packs for OpenClaw. Buy a pack, drop it into your skills folder, start a new session. 14-day refund.",
+      "Describe a company or SaaS idea and a founding team of AI agents drafts it live: plan, brand, product spec, a public landing page, and a launch kit.",
   },
 };
 
