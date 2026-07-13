@@ -182,6 +182,8 @@ export default async function CompanyPage({
   const finalCta = obj(landing?.finalCta);
 
   const heroCta = str(hero.cta) ?? "Join the waitlist";
+  // Immutable attribution key — survives slug changes, cleaned up on delete.
+  const waitlistSource = `co:${company.companyId}`;
   const finalCtaText = str(finalCta.cta) ?? "Join the waitlist";
 
   return (
@@ -211,7 +213,7 @@ export default async function CompanyPage({
             </p>
           )}
           <div className="mt-9 flex justify-center">
-            <CompanyWaitlist slug={slug} cta={heroCta} accent={primary} ink={ink} />
+            <CompanyWaitlist source={waitlistSource} cta={heroCta} accent={primary} ink={ink} />
           </div>
         </div>
       </section>
@@ -353,7 +355,7 @@ export default async function CompanyPage({
             {str(finalCta.headline) ?? "Be the first to try it."}
           </h2>
           <div className="mt-8 flex justify-center">
-            <CompanyWaitlist slug={slug} cta={finalCtaText} accent={primary} ink={ink} />
+            <CompanyWaitlist source={waitlistSource} cta={finalCtaText} accent={primary} ink={ink} />
           </div>
         </div>
       </section>

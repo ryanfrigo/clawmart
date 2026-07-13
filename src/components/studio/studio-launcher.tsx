@@ -4,10 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Dices, Loader2, Sparkles, Users } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { clerkEnabled, StudioUnavailable } from "@/components/studio/clerk-enabled";
 import { StatusBadge } from "@/components/studio/status-badge";
@@ -27,8 +27,27 @@ const ERRORS: Record<string, string> = {
 function CreateForm({ atLimit }: { atLimit: boolean }) {
   const router = useRouter();
   const create = useMutation(api.companies.create);
+  const surprise = useAction(api.agents.surpriseIdea);
   const [idea, setIdea] = useState("");
   const [busy, setBusy] = useState(false);
+  const [surprising, setSurprising] = useState(false);
+
+  async function onSurprise() {
+    setSurprising(true);
+    try {
+      const result = await surprise({});
+      setIdea(result.idea);
+    } catch (err) {
+      const code = err instanceof ConvexError ? String(err.data) : "";
+      toast.error(
+        code === "rate_limited"
+          ? "That's a lot of surprises for one day — try again tomorrow."
+          : (ERRORS[code] ?? "Couldn't think of one just now. Try again.")
+      );
+    } finally {
+      setSurprising(false);
+    }
+  }
 
   const len = idea.trim().length;
   const tooShort = len > 0 && len < IDEA_MIN;
@@ -59,7 +78,9 @@ function CreateForm({ atLimit }: { atLimit: boolean }) {
         onChange={(e) => setIdea(e.target.value)}
         maxLength={IDEA_MAX}
         rows={5}
-        disabled={busy || atLimit}
+        // Locked while a surprise is in flight too — a late-arriving idea
+        // must never overwrite text the user typed in the meantime.
+        disabled={busy || atLimit || surprising}
         placeholder="A scheduling tool for tattoo artists that handles deposits, reminders, and rebooking over text…"
         className="w-full resize-y rounded-xl border border-input bg-transparent px-4 py-3 text-[15px] leading-relaxed text-foreground outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
       />
@@ -77,19 +98,41 @@ function CreateForm({ atLimit }: { atLimit: boolean }) {
           direction.
         </p>
       )}
-      <Button type="submit" size="lg" disabled={!canSubmit} className="mt-4 w-full font-medium">
-        {busy ? (
-          <>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <Button
+          type="button"
+          size="lg"
+          variant="outline"
+          onClick={onSurprise}
+          disabled={busy || surprising || atLimit}
+          className="font-medium sm:w-auto"
+        >
+          {surprising ? (
             <Loader2 className="size-4 animate-spin" />
-            Assembling the founding team…
-          </>
-        ) : (
-          <>
-            <Sparkles className="size-4" />
-            Build the company
-          </>
-        )}
-      </Button>
+          ) : (
+            <Dices className="size-4" />
+          )}
+          Surprise me
+        </Button>
+        <Button
+          type="submit"
+          size="lg"
+          disabled={!canSubmit}
+          className="flex-1 font-medium"
+        >
+          {busy ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Assembling the founding team…
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-4" />
+              Build the company
+            </>
+          )}
+        </Button>
+      </div>
     </form>
   );
 }
@@ -144,6 +187,14 @@ function CompanyGrid() {
               >
                 Public page
               </Link>
+            )}
+            {/* A failed-rebuild page keeps serving and collecting — show the
+                signal whenever it exists, not only while "live". */}
+            {(c.status === "live" || c.waitlistCount > 0) && (
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <Users className="size-3.5" aria-hidden="true" />
+                {c.waitlistCount > 1000 ? "1,000+" : c.waitlistCount} on the waitlist
+              </span>
             )}
           </div>
         </div>

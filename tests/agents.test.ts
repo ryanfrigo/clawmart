@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENTS,
+  FALLBACK_IDEAS,
   PIPELINE,
   extractJson,
   slugify,
   slugSuffix,
+  surpriseIdeaMessages,
 } from "../convex/lib/agents";
 
 describe("extractJson", () => {
@@ -55,6 +57,23 @@ describe("slugify", () => {
 describe("slugSuffix", () => {
   it("returns 3 base36 chars", () => {
     expect(slugSuffix()).toMatch(/^[a-z0-9]{3}$/);
+  });
+});
+
+describe("surprise me", () => {
+  it("prompt demands a single JSON object with an idea", () => {
+    const messages = surpriseIdeaMessages();
+    expect(messages[0].role).toBe("system");
+    expect(messages[0].content).toContain('{"idea"');
+    expect(messages[0].content).toContain("ONLY a JSON object");
+  });
+
+  it("fallback pool entries all pass the create-form constraints", () => {
+    expect(FALLBACK_IDEAS.length).toBeGreaterThanOrEqual(5);
+    for (const idea of FALLBACK_IDEAS) {
+      expect(idea.trim().length).toBeGreaterThanOrEqual(20); // IDEA_MIN
+      expect(idea.length).toBeLessThanOrEqual(500);
+    }
   });
 });
 
