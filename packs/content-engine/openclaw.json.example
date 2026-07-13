@@ -1,0 +1,26 @@
+{
+  "//": "Optional config for the Content Engine pack. Merge the pieces you want into your own OpenClaw config; none of these keys are required for the skills to run. They give the skills defaults so you repeat yourself less.",
+  "contentEngine": {
+    "creatorName": "Ryan",
+    "showName": "The Cold Start Podcast",
+    "//defaultPlatforms": "which platforms social-repurpose writes for by default",
+    "defaultPlatforms": ["x", "linkedin", "shorts"],
+    "//voiceSamplesPath": "2-3 of your past posts so social/newsletter match your voice",
+    "voiceSamplesPath": "~/content/voice-samples.md",
+    "//outputDir": "where clean transcripts, notes, and drafts get written",
+    "outputDir": "~/content/episodes",
+    "//publishChecklist": "customize to how you actually ship; publish-checklist reads these items",
+    "publishChecklist": [
+      "master file rendered",
+      "title set",
+      "thumbnail ready",
+      "description has chapters + resource links",
+      "captions/SRT uploaded",
+      "show notes published",
+      "clips cut + scheduled",
+      "newsletter queued (one primary CTA)",
+      "guest sent clips + go-live time",
+      "cross-posts scheduled (X, LinkedIn)"
+    ]
+  }
+}

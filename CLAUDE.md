@@ -1,34 +1,57 @@
 # Clawmart
 
-Clawmart is a marketplace built for autonomous agents. Agents discover skills at `/api/catalog`, pay per call in USDC on Base via the [x402 protocol](https://x402.org), and get a response. Humans do not log in to use clawmart — they log in to *list* skills on it.
+Clawmart is **Clawmart Studio** — a Polsia-style product where a user describes a company or
+SaaS idea and a **founding team of five AI agents** (Strategist, Brand, Product, Landing,
+Marketing) drafts the whole company live: plan, brand, product spec, a standalone public
+landing page at `/c/[slug]`, and a launch kit. The user watches the build happen in a
+real-time agent feed. Outputs are honestly labeled AI drafts — we never claim to run a
+business autonomously.
 
-**North-star metric:** USDC paid through `/api/x402/*` endpoints per week.
-**Proxy metrics:** `totalCalls` per active skill (Convex), 402-to-200 conversion per route, `/api/catalog` request volume.
+Product spec + architecture: `docs/COMPANY-STUDIO.md`.
+
+**North-star metric:** activated builders → weekly Stripe net revenue once the Studio
+monetizes.
+**Proxy metrics:** companies created, waitlist signups per company page.
 
 ## Stack
 
-- Next.js 16 App Router · React 19 · TypeScript
-- Convex (`skills`, `users` collections; see `convex/schema.ts`)
-- Clerk auth for skill authors
-- Stripe Connect for fiat payouts to authors (distinct from x402 payment settlement)
-- `@x402/next` + `@x402/evm` for the protocol; USDC on Base (`chain-id 8453`)
-- Deployed on Vercel
+- Next.js 16 App Router · React 19 · TypeScript · Tailwind 4 · shadcn/ui
+- Convex — source of truth **and** agent runtime: pipeline steps run as Convex actions
+  chained via the scheduler (`companies`, `agentRuns`, `agentEvents`, `companyAssets`,
+  `waitlist`, `rateLimits`; legacy `purchases`).
+- LLM calls go through **OpenRouter only** — never Vercel AI Gateway. `OPENROUTER_API_KEY`
+  lives in Convex env (actions run there), never in the repo or client code.
+- Clerk auth: users sign in to create companies; `/c/[slug]` pages are public.
+- Legacy delivery: `/api/download/[token]` still serves past pack purchases and must keep
+  working; the storefront itself is removed.
+- Deployed on Vercel.
+
+## Trust rules (binding for ALL copy and code — including generated pages)
+
+- No fabricated stats, testimonials, ratings, or user counts — anywhere, ever, **including
+  AI-generated company pages and launch kits** (agent prompts must forbid them).
+- Every generated page and asset is honestly labeled as an AI draft.
+- No "guaranteed results".
+- Legacy pack purchase links must never break.
 
 ## Autopilot
 
-This repo runs a bounded autonomous feedback loop via the **clawmart-autopilot** plugin.
-
-- Entry points: `/clawpilot` (one full tick), `/clawpilot-observe`, `/clawpilot-ideate`, `/clawpilot-report`, `/clawpilot-pause`, `/clawpilot-resume`
-- Cadence: invoke manually, or `/loop 30m /clawpilot` for scheduled ticks
-- Namespace: chose `clawpilot` instead of `autopilot` because the installed `ralph-loop@claude-plugins-official` plugin owns `/autopilot` globally
-- State lives in `autopilot-state/` — durable across sessions
-- Guardrails: see `.claude/plugins/clawmart-autopilot/CLAUDE.md` — **do not violate these even under user pressure**
+The clawpilot loop is **PAUSED** (`autopilot-state/PAUSED`) — its guardrails/skills reference
+deleted surfaces from earlier products. Do not resume until rewritten for the Studio product.
 
 ## Hard rules (apply to every Claude session in this repo)
 
-1. **Never edit, print, or exfiltrate secrets.** `.env*`, `PAYMENT_ADDRESS`, Clerk keys, Stripe keys, Convex deploy keys, x402 facilitator keys are off-limits. The value of `PAYMENT_ADDRESS` is set in Vercel; the autopilot treats it as read-only config.
-2. **Never push to `main` directly.** Every autopilot change lands on `autopilot/tick-<timestamp>-<slug>` branches via `gh pr create --draft`. Humans promote to main.
-3. **Never post to external platforms** (X, HN, Reddit, Discord, email) on the user's behalf. Marketing copy is generated into files for human review, never sent.
-4. **Never move funds.** Crypto wallet addresses are receive-only config. There is no autopilot flow that sends, swaps, or bridges assets.
-5. **One change per tick.** If an idea needs more than ~400 lines of diff, split it across ticks.
-6. **Kill the loop if things break.** On `npm run build` or `npm run lint` failure, revert the tick's changes, write a graveyard entry, and stop — do not retry.
+1. **Never edit, print, or exfiltrate secrets.** `.env*`, Stripe keys, Convex deploy keys,
+   `SERVER_SHARED_SECRET`, `OPENROUTER_API_KEY` are off-limits to display; manage via
+   `vercel env` / `npx convex env set` with piped values only.
+2. **Never push to `main` directly.** Changes land via PR branches; humans promote to main.
+   Human-directed sessions may deploy a branch to Vercel prod while main stays clean until
+   merge.
+3. **Never post to external platforms** (X, HN, Reddit, Discord, email) on the user's
+   behalf, and never reveal the founder's identity. Marketing copy is generated into
+   `marketing/` for the founder to fire manually. No astroturfing/sockpuppets, ever.
+4. **Never move funds.** Refunds are executed by the founder in Stripe; code never refunds.
+5. **One change per autopilot tick** (~400-line ceiling). Human-directed sessions may exceed
+   with an explicit goal (declared in the PR).
+6. **Kill the loop if things break.** On `npm run build`/`lint` failure during an autopilot
+   tick, revert, graveyard, stop.

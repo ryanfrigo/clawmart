@@ -1,166 +1,111 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+/**
+ * Clawmart v2 schema — premium OpenClaw skill-pack storefront.
+ *
+ * Guest-first: no user accounts. A purchase is keyed by an unguessable token
+ * (the delivery URL). Money mutations are internal; the only public surface is
+ * createPending / attachStripeSession (secret-guarded) and getByToken.
+ */
 export default defineSchema({
-  users: defineTable({
-    clerkId: v.string(),
-    email: v.string(),
-    name: v.optional(v.string()),
-    imageUrl: v.optional(v.string()),
-    stripeCustomerId: v.optional(v.string()),
-    plan: v.union(
-      v.literal("free"),
-      v.literal("pro"),
-      v.literal("enterprise")
-    ),
-    createdAt: v.number(),
-  })
-    .index("by_clerk_id", ["clerkId"])
-    .index("by_email", ["email"])
-    .index("by_stripe_customer_id", ["stripeCustomerId"]),
-
-  skills: defineTable({
-    slug: v.optional(v.string()), // URL-friendly identifier
-    name: v.string(),
-    description: v.string(),
-    longDescription: v.optional(v.string()),
-    category: v.string(),
-    endpoint: v.string(),
-    method: v.union(v.literal("GET"), v.literal("POST")),
-    pricePerCall: v.number(), // in USD, e.g. 0.003
-    authorId: v.optional(v.id("users")), // optional for seeded/system skills
-    authorName: v.string(),
-    tags: v.array(v.string()),
-    exampleInput: v.optional(v.string()),
-    exampleOutput: v.optional(v.string()),
-    responseTime: v.optional(v.string()),
-    totalCalls: v.number(),
-    totalReviews: v.number(),
-    averageRating: v.number(),
+  // One row per checkout attempt. Stripe drives it pending_payment -> paid|failed.
+  purchases: defineTable({
+    token: v.string(), // 128-bit hex — the download URL key. Never expose _id.
+    slug: v.string(), // pack slug or "all-access"
+    title: v.optional(v.string()), // human label passed from checkout (record only)
+    email: v.optional(v.string()), // from Stripe session, for delivery
     status: v.union(
-      v.literal("active"),
-      v.literal("pending"),
-      v.literal("disabled")
-    ),
-    createdAt: v.number(),
-  })
-    .index("by_author", ["authorId"])
-    .index("by_category", ["category"])
-    .index("by_status", ["status"])
-    .index("by_slug", ["slug"])
-    .searchIndex("search_name", { searchField: "name" }),
-
-  reviews: defineTable({
-    skillId: v.id("skills"),
-    userId: v.id("users"),
-    rating: v.number(), // 1-5
-    comment: v.optional(v.string()),
-    createdAt: v.number(),
-  })
-    .index("by_skill", ["skillId"])
-    .index("by_user_skill", ["userId", "skillId"]),
-
-  transactions: defineTable({
-    skillId: v.id("skills"),
-    buyerId: v.id("users"),
-    sellerId: v.id("users"),
-    amount: v.number(), // USD
-    status: v.union(
-      v.literal("completed"),
-      v.literal("pending"),
+      v.literal("pending_payment"),
+      v.literal("paid"),
       v.literal("failed")
     ),
-    txHash: v.optional(v.string()),
+    stripeSessionId: v.optional(v.string()), // idempotency key for fulfillment
+    stripePaymentIntentId: v.optional(v.string()),
+    amountUsd: v.number(), // whole dollars, validated against allowed prices
+    // Crypto (USDC on Base) rail — optional; card purchases leave these unset.
+    paymentMethod: v.optional(v.union(v.literal("card"), v.literal("crypto"))),
+    expectedUsdcMicro: v.optional(v.number()), // exact USDC (6dp micro units) to match on-chain
+    cryptoFromBlock: v.optional(v.number()), // Base block at order creation — scan from here
+    cryptoTxHash: v.optional(v.string()), // the matched on-chain payment
     createdAt: v.number(),
+    paidAt: v.optional(v.number()),
   })
-    .index("by_buyer", ["buyerId"])
-    .index("by_seller", ["sellerId"])
-    .index("by_skill", ["skillId"]),
+    .index("by_token", ["token"])
+    .index("by_stripe_session", ["stripeSessionId"]),
 
-  // Keep old tables for backward compat during migration
-  templates: defineTable({
-    name: v.string(),
-    industry: v.string(),
-    description: v.string(),
-    icon: v.string(),
-    color: v.string(),
-    agents: v.array(
-      v.object({
-        name: v.string(),
-        role: v.string(),
-        description: v.string(),
-        systemPrompt: v.string(),
-        tools: v.array(v.string()),
-      })
-    ),
-  }).index("by_industry", ["industry"]),
+  // Sliding-window rate limiting (keyed by hashed IP or a global key).
+  rateLimits: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index("by_key", ["key"]),
 
-  workforces: defineTable({
-    name: v.string(),
-    userId: v.id("users"),
-    templateId: v.optional(v.id("templates")),
+  // "New packs" waitlist — validates demand for future packs before we build them.
+  waitlist: defineTable({
+    email: v.string(),
+    source: v.string(), // e.g. "home" | "packs" | "purchase"
+    domain: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_email", ["email"]),
+
+  // ---- Company Studio (docs/COMPANY-STUDIO.md) ----------------------------
+
+  // One row per user company idea. Owned by a Clerk user; public via slug.
+  companies: defineTable({
+    ownerId: v.string(), // Clerk subject
+    slug: v.string(), // public URL key — re-slugged from brand name mid-build
+    slugLocked: v.optional(v.boolean()), // once branded, the slug never changes (shared links)
+    idea: v.string(), // the user's raw description
+    name: v.string(), // provisional until the brand agent lands
+    tagline: v.optional(v.string()),
     status: v.union(
-      v.literal("active"),
-      v.literal("paused"),
-      v.literal("setup")
-    ),
-    config: v.optional(
-      v.object({
-        companyName: v.optional(v.string()),
-        brandVoice: v.optional(v.string()),
-        industry: v.optional(v.string()),
-        context: v.optional(v.string()),
-      })
+      v.literal("draft"),
+      v.literal("building"),
+      v.literal("live"),
+      v.literal("failed")
     ),
     createdAt: v.number(),
-  }).index("by_user", ["userId"]),
+    updatedAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_owner", ["ownerId"]),
 
-  agents: defineTable({
-    workforceId: v.id("workforces"),
-    name: v.string(),
-    role: v.string(),
-    description: v.string(),
-    systemPrompt: v.string(),
-    tools: v.array(v.string()),
+  // One row per pipeline step per build.
+  agentRuns: defineTable({
+    companyId: v.id("companies"),
+    agentKey: v.string(), // "strategist" | "brand" | "product" | "landing" | "marketing"
     status: v.union(
-      v.literal("active"),
-      v.literal("idle"),
-      v.literal("error"),
-      v.literal("paused")
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("done"),
+      v.literal("failed")
     ),
-    messagesProcessed: v.number(),
-    lastActive: v.optional(v.number()),
+    model: v.string(),
+    attempt: v.number(), // 1-based; one retry max
+    error: v.optional(v.string()),
+    tokensIn: v.optional(v.number()),
+    tokensOut: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
     createdAt: v.number(),
-  }).index("by_workforce", ["workforceId"]),
+  }).index("by_company", ["companyId"]),
 
-  messages: defineTable({
-    agentId: v.id("agents"),
-    workforceId: v.id("workforces"),
-    role: v.union(v.literal("user"), v.literal("agent"), v.literal("system")),
-    content: v.string(),
-    createdAt: v.number(),
-  })
-    .index("by_workforce", ["workforceId"])
-    .index("by_agent", ["agentId"]),
+  // Append-only live feed shown in /studio/[id].
+  agentEvents: defineTable({
+    companyId: v.id("companies"),
+    agentKey: v.string(),
+    kind: v.union(v.literal("status"), v.literal("output")),
+    text: v.string(),
+    ts: v.number(),
+  }).index("by_company", ["companyId"]),
 
-  // Credit system for skill payments
-  creditBalances: defineTable({
-    userId: v.id("users"),
-    credits: v.number(),
-    lastUsed: v.optional(v.number()),
-  }).index("by_userId", ["userId"]),
-
-  creditTransactions: defineTable({
-    userId: v.id("users"),
-    type: v.union(v.literal("purchased"), v.literal("spent"), v.literal("refunded"), v.literal("bonus")),
-    amount: v.number(), // positive for additions, negative for spending
-    description: v.string(),
-    skillId: v.optional(v.string()),
-    paymentId: v.optional(v.string()),
-    packageId: v.optional(v.string()),
-    metadata: v.optional(v.any()),
-    createdAt: v.number(),
-  })
-    .index("by_userId", ["userId"])
-    .index("by_type", ["type"]),
+  // Final artifacts, one per kind per company (upserted on re-runs).
+  // json is a stringified blob — agent output schemas evolve too fast for validators.
+  companyAssets: defineTable({
+    companyId: v.id("companies"),
+    kind: v.string(), // "plan" | "brand" | "product" | "landing" | "marketing"
+    json: v.string(),
+    updatedAt: v.number(),
+  }).index("by_company_kind", ["companyId", "kind"]),
 });

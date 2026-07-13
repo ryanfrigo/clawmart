@@ -9,14 +9,13 @@
  */
 
 import type * as agents from "../agents.js";
-import type * as credits from "../credits.js";
-import type * as messages from "../messages.js";
-import type * as reviews from "../reviews.js";
-import type * as skills from "../skills.js";
-import type * as templates from "../templates.js";
-import type * as transactions from "../transactions.js";
-import type * as users from "../users.js";
-import type * as workforces from "../workforces.js";
+import type * as companies from "../companies.js";
+import type * as crons from "../crons.js";
+import type * as http from "../http.js";
+import type * as lib_agents from "../lib/agents.js";
+import type * as lib_pure from "../lib/pure.js";
+import type * as purchases from "../purchases.js";
+import type * as waitlist from "../waitlist.js";
 
 import type {
   ApiFromModules,
@@ -26,14 +25,13 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agents: typeof agents;
-  credits: typeof credits;
-  messages: typeof messages;
-  reviews: typeof reviews;
-  skills: typeof skills;
-  templates: typeof templates;
-  transactions: typeof transactions;
-  users: typeof users;
-  workforces: typeof workforces;
+  companies: typeof companies;
+  crons: typeof crons;
+  http: typeof http;
+  "lib/agents": typeof lib_agents;
+  "lib/pure": typeof lib_pure;
+  purchases: typeof purchases;
+  waitlist: typeof waitlist;
 }>;
 
 /**

@@ -1,0 +1,32 @@
+# Clawmart
+
+> Clawmart Studio: describe a company or SaaS idea, and a founding team of
+> five AI agents — strategist, brand, product, landing page, marketing —
+> drafts the whole company live. You get a business plan, a name and brand
+> identity, a product spec, a public standalone landing page, and a launch
+> kit. Free to use, up to three companies per account. Every output is an
+> AI-generated draft, honestly labeled as such — a starting point, not a
+> guarantee.
+
+## Studio
+
+- [Clawmart Studio](https://clawmart.co): type an idea, watch the
+  founding team work in real time, and come away with a full first draft of
+  the company — plan, brand, product spec, landing page, and launch kit.
+- Every finished company gets a public standalone page at
+  `https://clawmart.co/c/<slug>` that you can share.
+
+## How it works
+
+1. Describe the company or SaaS idea in a sentence or two.
+2. Five AI agents draft in sequence: the strategist writes the business plan,
+   brand names it and shapes the identity, product writes the spec, landing
+   builds the public page, and marketing assembles the launch kit.
+3. Watch the drafts appear live, then share the public company page.
+
+## Honesty
+
+Everything the Studio produces is an AI-generated draft — labeled as such on
+the page. It is a fast first pass to react to and refine, not validated
+research, legal advice, or a guarantee of results. Free to use, limited to
+three companies per account.

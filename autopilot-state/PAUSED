@@ -1,0 +1,4 @@
+PAUSED: 2026-07-02 human-directed relaunch to AI Visibility Fix Kit (docs/RELAUNCH-SPEC.md).
+The loop's guardrails, skills, and metrics reference deleted surfaces (/api/catalog, /api/x402/*, skills pages).
+Do not resume until .claude/plugins/clawmart-autopilot/ and .claude/skills/clawmart-* are rewritten for the new product.
+Resume via /clawpilot-resume after Ryan reviews.
