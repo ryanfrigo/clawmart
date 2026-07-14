@@ -64,10 +64,15 @@ export default function PrivacyPage() {
           link.
         </li>
         <li>
-          <strong className="text-foreground">Waitlist emails, per company.</strong>{" "}
-          If you join the waitlist on a company page, we store your email with
-          that company. It&apos;s used solely in connection with that company
-          page — never for a Clawmart marketing list.
+          <strong className="text-foreground">Waitlist emails go to the
+          company&apos;s creator.</strong> If you join the waitlist on a
+          company page, we store your email and show it to the person who built
+          that company (stated under the form) so they can contact you about
+          that idea. Clawmart never adds you to its own marketing list, and we
+          don&apos;t use waitlist emails for anything beyond running that page —
+          but once the creator receives your address, how they use it is up to
+          them, so only join waitlists for ideas you actually want to hear
+          about. You can ask us to delete your entry any time (see below).
         </li>
       </ul>
 

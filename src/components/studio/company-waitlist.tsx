@@ -57,32 +57,39 @@ export function CompanyWaitlist({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full max-w-md flex-col gap-2 sm:flex-row">
-      <Input
-        type="email"
-        value={email}
-        onChange={(e) => {
-          setEmail(e.target.value);
-          if (state === "error") setState("idle");
-        }}
-        placeholder="you@email.com"
-        aria-label="Email to join the waitlist"
-        aria-invalid={state === "error"}
-        className="h-11 bg-background/60"
-      />
-      <button
-        type="submit"
-        disabled={state === "busy"}
-        className="inline-flex h-11 shrink-0 items-center justify-center rounded-md px-5 text-[14px] font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-        style={{ backgroundColor: accent, color: ink }}
-      >
-        {state === "busy" ? "Joining…" : cta}
-      </button>
+    <form onSubmit={onSubmit} className="flex w-full max-w-md flex-col gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          type="email"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (state === "error") setState("idle");
+          }}
+          placeholder="you@email.com"
+          aria-label="Email to join the waitlist"
+          aria-invalid={state === "error"}
+          className="h-11 bg-background/60"
+        />
+        <button
+          type="submit"
+          disabled={state === "busy"}
+          className="inline-flex h-11 shrink-0 items-center justify-center rounded-md px-5 text-[14px] font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+          style={{ backgroundColor: accent, color: ink }}
+        >
+          {state === "busy" ? "Joining…" : cta}
+        </button>
+      </div>
       {state === "error" && (
-        <p role="alert" className="text-[12px] text-destructive sm:sr-only">
+        <p role="alert" className="text-[12px] text-destructive">
           Enter a valid email address.
         </p>
       )}
+      {/* Honest disclosure: the waitlist exists so the builder can reach you. */}
+      <p className="text-left text-[11px] leading-relaxed text-muted-foreground/60">
+        Your email goes to this company&apos;s creator so they can tell you when
+        it launches.
+      </p>
     </form>
   );
 }

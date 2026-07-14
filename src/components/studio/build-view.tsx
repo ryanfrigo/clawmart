@@ -256,6 +256,88 @@ function OutputTabs({
   );
 }
 
+/* ---------------- waitlist signups (owner-only) ---------------- */
+
+function SignupsPanel({
+  companyId,
+  count,
+}: {
+  companyId: Id<"companies">;
+  count: number;
+}) {
+  const [open, setOpen] = useState(false);
+  // Fetched only when opened — the count badge already tells the scale.
+  const rows = useQuery(api.companies.signups, open ? { companyId } : "skip");
+
+  function copyAll() {
+    if (!rows?.length) return;
+    if (!navigator.clipboard) {
+      toast.error("Copy isn't available in this browser.");
+      return;
+    }
+    navigator.clipboard.writeText(rows.map((r) => r.email).join("\n")).then(
+      () => toast.success(`${rows.length} email${rows.length === 1 ? "" : "s"} copied`),
+      () => toast.error("Copy failed")
+    );
+  }
+
+  if (count === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card/40 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          Waitlist signups
+        </p>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="text-[12.5px] font-medium text-foreground/80 transition-colors hover:text-lobster"
+        >
+          {open ? "Hide" : `View (${count > 1000 ? "1,000+" : count})`}
+        </button>
+      </div>
+      {open && (
+        <div className="mt-4">
+          {rows === undefined ? (
+            <div className="shimmer-line h-16 rounded-lg" />
+          ) : rows === null || rows.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">No signups yet.</p>
+          ) : (
+            <>
+              <ul className="max-h-64 space-y-1.5 overflow-y-auto">
+                {rows.map((r, i) => (
+                  <li
+                    key={i}
+                    className="flex items-baseline justify-between gap-3 text-[13px]"
+                  >
+                    <span className="truncate text-foreground/90">{r.email}</span>
+                    <time className="shrink-0 font-mono text-[11px] text-muted-foreground/70">
+                      {new Date(r.createdAt).toLocaleDateString()}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={copyAll}
+                className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <Link2 className="size-3.5" />
+                Copy emails
+              </button>
+              <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground/70">
+                These people asked to hear from you about this idea.
+                {rows.length >= 100 && " Showing the 100 most recent."}
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- root ---------------- */
 
 export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
@@ -439,6 +521,7 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
         <div className="space-y-6">
           <AgentPipeline runs={runs as RunLike[]} />
           <AgentFeed events={events as EventLike[]} />
+          <SignupsPanel companyId={companyId} count={waitlistCount} />
         </div>
         <OutputTabs
           assets={assets as Record<string, string | undefined>}
