@@ -185,16 +185,19 @@ async function waitlistCountFor(
   companyId: Id<"companies">,
   slug: string
 ): Promise<number> {
-  let total = 0;
+  // Dedupe by email across the migrated co:<id> and legacy c:<slug> keys so
+  // the badge count matches the (also-deduped) signups list — a subscriber
+  // present under both keys is one person. Bounded: at most 2×(CAP+1) reads.
+  const emails = new Set<string>();
   for (const source of waitlistSources(companyId, slug)) {
     const rows = await ctx.db
       .query("waitlist")
       .withIndex("by_source", (q) => q.eq("source", source))
-      .take(WAITLIST_COUNT_CAP + 1 - total);
-    total += rows.length;
-    if (total > WAITLIST_COUNT_CAP) return total;
+      .take(WAITLIST_COUNT_CAP + 1);
+    for (const r of rows) emails.add(r.email);
+    if (emails.size > WAITLIST_COUNT_CAP) return emails.size;
   }
-  return total;
+  return emails.size;
 }
 
 // ---------------------------------------------------------------------------
@@ -759,6 +762,44 @@ export const digestRows = internalQuery({
       });
     }
     return rows;
+  },
+});
+
+/**
+ * The actual signups for a company — owner-only. This is the market-fit
+ * payoff: the emails you'll contact when you build the real thing. Bounded to
+ * the most recent SIGNUPS_MAX (the count badge shows the full scale).
+ */
+const SIGNUPS_MAX = 100;
+
+export const signups = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const company = await ctx.db.get(args.companyId);
+    if (!company || company.ownerId !== identity.subject) return null;
+
+    // Collapse the migrated co:<id> and legacy c:<slug> source keys by email:
+    // someone who joined both before and after the 2026-07-13 key change is
+    // the same person and must not be exported (or emailed) twice.
+    const byEmail = new Map<string, number>();
+    for (const source of waitlistSources(args.companyId, company.slug)) {
+      const rows = await ctx.db
+        .query("waitlist")
+        .withIndex("by_source", (q) => q.eq("source", source))
+        .order("desc")
+        .take(SIGNUPS_MAX);
+      for (const r of rows) {
+        // Keep the earliest join time — when they actually signed up.
+        const prev = byEmail.get(r.email);
+        if (prev === undefined || r.createdAt < prev) byEmail.set(r.email, r.createdAt);
+      }
+    }
+    const deduped = Array.from(byEmail, ([email, createdAt]) => ({ email, createdAt }));
+    return deduped
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, SIGNUPS_MAX);
   },
 });
 
