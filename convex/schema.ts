@@ -115,4 +115,38 @@ export default defineSchema({
     json: v.string(),
     updatedAt: v.number(),
   }).index("by_company_kind", ["companyId", "kind"]),
+
+  // ---- Dev boxes (docs/adr/2026-07-18-ec2-provisioning.md) -----------------
+  // One row per real EC2 worker box a user spins up for a live company. The box
+  // runs a BYOK agent that opens PRs against the user's repo — reviewed by the
+  // user, never auto-merged. Feature-flagged (CLAWMART_BOXES_ENABLED); the whole
+  // subsystem is a no-op until the AWS control-plane creds are set in Convex env.
+  devBoxes: defineTable({
+    companyId: v.id("companies"),
+    ownerId: v.string(), // Clerk subject — authorizes kill/status
+    boxId: v.string(), // public, unguessable id: "box_<hex>"; used in tags + SSM path
+    status: v.union(
+      v.literal("provisioning"),
+      v.literal("running"),
+      v.literal("terminating"),
+      v.literal("terminated"),
+      v.literal("failed")
+    ),
+    instanceId: v.optional(v.string()),
+    publicIp: v.optional(v.string()),
+    region: v.string(),
+    instanceType: v.string(),
+    repoUrl: v.string(),
+    baseBranch: v.string(),
+    // sha-256 hex of the per-box callback secret — validates the box's audit POSTs
+    // without ever storing the raw secret (raw lives only in SSM, read by the box).
+    callbackSecretHash: v.string(),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    terminatedAt: v.optional(v.number()),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_box", ["boxId"])
+    .index("by_owner", ["ownerId"]),
 });

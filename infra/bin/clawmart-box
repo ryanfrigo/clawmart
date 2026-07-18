@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# clawmart-box — out-of-band operator CLI for Clawmart dev boxes.
+#
+# Works with nothing but awscli, straight from your laptop — so it's your kill
+# switch even if the web app is down. Every command is scoped to Project=clawmart
+# tagged instances; it will never touch anything else in your account.
+#
+#   clawmart-box list                 list running/pending boxes
+#   clawmart-box status <box-id>      one box's state, IP, uptime
+#   clawmart-box logs <box-id>        tail its CloudWatch audit log
+#   clawmart-box ssm <box-id>         open a keyless SSM shell on the box
+#   clawmart-box kill <box-id>        terminate one box + delete its SSM secrets
+#   clawmart-box nuke                 terminate ALL clawmart boxes (panic button)
+#
+set -euo pipefail
+REGION="${AWS_REGION:-us-east-2}"
+Q='Reservations[].Instances[?State.Name==`running`||State.Name==`pending`]'
+
+_iid() { # resolve a box-id to an instance-id
+  aws ec2 describe-instances --region "$REGION" \
+    --filters Name=tag:ClawmartBoxId,Values="$1" Name=instance-state-name,Values=running,pending,stopping,stopped \
+    --query 'Reservations[0].Instances[0].InstanceId' --output text
+}
+
+cmd="${1:-list}"; shift || true
+case "$cmd" in
+  list)
+    aws ec2 describe-instances --region "$REGION" \
+      --filters Name=tag:Project,Values=clawmart Name=instance-state-name,Values=running,pending \
+      --query "$Q.[Tags[?Key=='ClawmartBoxId']|[0].Value,InstanceId,InstanceType,PublicIpAddress,LaunchTime]" \
+      --output table ;;
+  status)
+    box="${1:?usage: clawmart-box status <box-id>}"
+    aws ec2 describe-instances --region "$REGION" \
+      --filters Name=tag:ClawmartBoxId,Values="$box" \
+      --query 'Reservations[].Instances[].{state:State.Name,ip:PublicIpAddress,type:InstanceType,launched:LaunchTime,instance:InstanceId}' \
+      --output table ;;
+  logs)
+    box="${1:?usage: clawmart-box logs <box-id>}"
+    aws logs tail "/clawmart/box/${box}" --region "$REGION" --since 1h --follow ;;
+  ssm)
+    box="${1:?usage: clawmart-box ssm <box-id>}"
+    iid="$(_iid "$box")"; [ "$iid" = "None" ] && { echo "no box $box"; exit 1; }
+    exec aws ssm start-session --region "$REGION" --target "$iid" ;;
+  kill)
+    box="${1:?usage: clawmart-box kill <box-id>}"
+    iid="$(_iid "$box")"
+    if [ "$iid" != "None" ] && [ -n "$iid" ]; then
+      aws ec2 terminate-instances --region "$REGION" --instance-ids "$iid" \
+        --query 'TerminatingInstances[].{id:InstanceId,state:CurrentState.Name}' --output table
+    else
+      echo "no live instance for box $box (cleaning up secrets anyway)"
+    fi
+    # scrub the box's secrets/config from SSM regardless of instance state
+    params="$(aws ssm get-parameters-by-path --region "$REGION" \
+      --path "/clawmart/box/${box}" --recursive \
+      --query 'Parameters[].Name' --output text 2>/dev/null || true)"
+    [ -n "$params" ] && aws ssm delete-parameters --region "$REGION" --names $params >/dev/null && echo "deleted SSM secrets for $box" ;;
+  nuke)
+    ids="$(aws ec2 describe-instances --region "$REGION" \
+      --filters Name=tag:Project,Values=clawmart Name=instance-state-name,Values=running,pending \
+      --query 'Reservations[].Instances[].InstanceId' --output text)"
+    [ -z "$ids" ] && { echo "no clawmart boxes running"; exit 0; }
+    echo "terminating: $ids"
+    aws ec2 terminate-instances --region "$REGION" --instance-ids $ids \
+      --query 'TerminatingInstances[].{id:InstanceId,state:CurrentState.Name}' --output table ;;
+  *)
+    grep '^#' "$0" | sed 's/^# \{0,1\}//' | head -20 ;;
+esac

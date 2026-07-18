@@ -1,0 +1,77 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LaunchTaggedWorkers",
+      "Effect": "Allow",
+      "Action": "ec2:RunInstances",
+      "Resource": [
+        "arn:aws:ec2:us-east-2:345757498436:instance/*",
+        "arn:aws:ec2:us-east-2:345757498436:volume/*",
+        "arn:aws:ec2:us-east-2:345757498436:network-interface/*",
+        "arn:aws:ec2:us-east-2:345757498436:security-group/*",
+        "arn:aws:ec2:us-east-2:345757498436:subnet/*",
+        "arn:aws:ec2:us-east-2:345757498436:key-pair/*",
+        "arn:aws:ec2:us-east-2::image/*"
+      ]
+    },
+    {
+      "Sid": "TagOnCreateOnly",
+      "Effect": "Allow",
+      "Action": "ec2:CreateTags",
+      "Resource": "arn:aws:ec2:us-east-2:345757498436:*/*",
+      "Condition": { "StringEquals": { "ec2:CreateAction": "RunInstances" } }
+    },
+    {
+      "Sid": "ManageOnlyClawmartWorkers",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:TerminateInstances",
+        "ec2:StopInstances",
+        "ec2:StartInstances"
+      ],
+      "Resource": "arn:aws:ec2:us-east-2:345757498436:instance/*",
+      "Condition": { "StringEquals": { "aws:ResourceTag/Project": "clawmart" } }
+    },
+    {
+      "Sid": "DescribeIsUnscopable",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeImages"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PassOnlyWorkerRoleToEc2",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::345757498436:role/clawmart-worker-role",
+      "Condition": { "StringEquals": { "iam:PassedToService": "ec2.amazonaws.com" } }
+    },
+    {
+      "Sid": "ManageBoxSecretsAndConfig",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:PutParameter",
+        "ssm:DeleteParameter",
+        "ssm:DeleteParameters",
+        "ssm:GetParameter"
+      ],
+      "Resource": "arn:aws:ssm:us-east-2:345757498436:parameter/clawmart/box/*"
+    },
+    {
+      "Sid": "CreateBoxLogGroups",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DescribeLogGroups",
+        "logs:PutRetentionPolicy"
+      ],
+      "Resource": "arn:aws:logs:us-east-2:345757498436:log-group:/clawmart/box/*"
+    }
+  ]
+}

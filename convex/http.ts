@@ -24,6 +24,55 @@ const HANDLED_EVENTS = [
 
 const http = httpRouter();
 
+async function sha256Hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// Audit callback from a dev box. Authenticated by the box's per-box secret
+// (sha-256 compared against devBoxes.callbackSecretHash) — never a user session.
+// Writes into the same agentEvents feed the Studio already renders.
+http.route({
+  path: "/box/event",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const secret = request.headers.get("x-clawmart-box-secret");
+    if (!secret) return new Response("missing secret", { status: 401 });
+
+    let payload: { boxId?: string; kind?: string; text?: string };
+    try {
+      payload = await request.json();
+    } catch {
+      return new Response("bad json", { status: 400 });
+    }
+    const boxId = payload.boxId;
+    if (!boxId) return new Response("no boxId", { status: 400 });
+
+    const box = await ctx.runQuery(internal.boxes.getByBoxId, { boxId });
+    if (!box || !box.callbackSecretHash) {
+      return new Response("unknown box", { status: 404 });
+    }
+    if (!timingSafeEqual(await sha256Hex(secret), box.callbackSecretHash)) {
+      return new Response("bad secret", { status: 401 });
+    }
+
+    const kind = payload.kind === "output" ? "output" : "status";
+    await ctx.runMutation(internal.boxes.recordBoxEvent, {
+      boxId,
+      kind,
+      text: typeof payload.text === "string" ? payload.text : "",
+    });
+    return new Response("ok", { status: 200 });
+  }),
+});
+
 http.route({
   path: "/stripe/webhook",
   method: "POST",
