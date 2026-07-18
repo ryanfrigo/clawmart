@@ -2,12 +2,31 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "LaunchTaggedWorkers",
+      "Sid": "LaunchOnlyTaggedBoundedInstances",
       "Effect": "Allow",
       "Action": "ec2:RunInstances",
       "Resource": [
         "arn:aws:ec2:us-east-2:345757498436:instance/*",
-        "arn:aws:ec2:us-east-2:345757498436:volume/*",
+        "arn:aws:ec2:us-east-2:345757498436:volume/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "clawmart",
+          "ec2:InstanceType": [
+            "t4g.small",
+            "t4g.medium",
+            "t4g.large",
+            "t3.small",
+            "t3.medium"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "LaunchSupportingResources",
+      "Effect": "Allow",
+      "Action": "ec2:RunInstances",
+      "Resource": [
         "arn:aws:ec2:us-east-2:345757498436:network-interface/*",
         "arn:aws:ec2:us-east-2:345757498436:security-group/*",
         "arn:aws:ec2:us-east-2:345757498436:subnet/*",

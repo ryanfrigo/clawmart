@@ -42,7 +42,7 @@ docker push  ghcr.io/<you>/clawmart-agent:latest
 npx convex env set CLAWMART_BOX_AGENT_IMAGE ghcr.io/<you>/clawmart-agent:latest
 
 # 5. Provide the box's BYOK key + a FINE-GRAINED bot PAT (allowed repos only,
-#    contents:write + pull_requests:write; protect `main` so PRs are the only path)
+#    contents:write + pull_requests:write; NO `workflows` scope; protect `main`)
 npx convex env set CLAWMART_BOX_GITHUB_TOKEN  github_pat_...
 #    (BYOK LLM key reuses OPENROUTER_API_KEY unless you set CLAWMART_BOX_LLM_KEY)
 
@@ -84,6 +84,16 @@ clawmart-box ssm <box-id>    # keyless shell on the box (no SSH)
 clawmart-box kill <box-id>   # terminate one box + delete its SSM secrets
 clawmart-box nuke            # panic button: terminate ALL clawmart boxes
 ```
+
+## Residual risk: CI runs before human review
+
+"PR-only, nothing merges without you" is true for the *merge*, but a pushed
+`clawmart/*` branch can still trigger the target repo's CI. If a task is
+prompt-injected, agent-authored `postinstall`/build scripts execute in **your CI
+with its secrets** on branch push, before you read the PR. Mitigate for untrusted
+tasks by: giving the bot PAT **no `workflows` scope** (blocks adding new workflow
+files), scoping CI to run only on PRs from trusted actors, or pointing dev boxes
+at a **fork / CI-less mirror**. Treat a dev box like an untrusted contributor.
 
 ## Cost
 

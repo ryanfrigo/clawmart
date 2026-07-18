@@ -7,8 +7,10 @@
 #      code path that pushes the base branch. Grep it: there is no `push .* main`.
 #   2. The GitHub token is a fine-grained PAT scoped to ONE repo, contents:write +
 #      pull_requests:write only — it cannot touch other repos.
-#   3. The base branch is expected to be protection-locked, so even a rogue push
-#      is refused server-side.
+#   3. The base branch is expected to be protection-locked. NOTE: a pushed
+#      clawmart/* branch can still trigger CI, so the bot PAT must exclude the
+#      `workflows` scope and untrusted tasks should target a fork/CI-less mirror
+#      (see docs/PROVISIONING.md "Residual risk").
 #   4. Runs as an unprivileged user in a read-only container (see cloud-init).
 #
 # Reads config from $CLAWMART_CONFIG (JSON). Secrets come from env, never argv.

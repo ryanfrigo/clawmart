@@ -30,6 +30,16 @@ crons.interval(
   {}
 );
 
+// Dev-box reaper: control-plane backstop that terminates any clawmart EC2 box
+// outliving its budget, independent of the box's own self-terminate. No-op
+// unless AWS control-plane creds are set (CLAWMART_BOXES_ENABLED path).
+crons.interval(
+  "devbox: reap stale boxes",
+  { minutes: 15 },
+  internal.provisioning.reapStaleBoxes,
+  {}
+);
+
 // Daily CEO check-in: one honest note per live company into its feed, plus a
 // morning digest email per owner (env-gated on RESEND_API_KEY).
 // 14:00 UTC ≈ 7am PT — a morning email for US founders.

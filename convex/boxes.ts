@@ -85,12 +85,13 @@ export const provisionDevBox = mutation({
     if (task.length > TASK_MAX) throw new ConvexError("task_too_long");
 
     // The bot PAT is server-held, so a user must not aim a box at an arbitrary
-    // repo. Only repos on the server allowlist are permitted.
+    // repo. Fail CLOSED: an empty allowlist permits nothing, and any repo must be
+    // an explicit member — never treat "no allowlist" as "allow everything".
     const allow = (process.env.CLAWMART_BOX_REPO_ALLOWLIST ?? "")
       .split(",").map((s) => s.trim()).filter(Boolean);
-    const repoUrl = (args.repoUrl ?? allow[0] ?? "").trim();
-    if (!repoUrl) throw new ConvexError("no_repo_configured");
-    if (allow.length && !allow.includes(repoUrl)) throw new ConvexError("repo_not_allowed");
+    if (allow.length === 0) throw new ConvexError("no_repo_configured");
+    const repoUrl = (args.repoUrl ?? allow[0]).trim();
+    if (!allow.includes(repoUrl)) throw new ConvexError("repo_not_allowed");
 
     // Never two live boxes for the same company.
     const existing = await ctx.db
@@ -224,6 +225,16 @@ export const recordLaunch = internalMutation({
       .withIndex("by_box", (q) => q.eq("boxId", args.boxId))
       .first();
     if (!box) return null;
+    // If the user hit "kill" while the box was still provisioning, don't
+    // resurrect it — record the now-known instanceId and terminate the orphan.
+    if (box.status === "terminating" || box.status === "terminated") {
+      await ctx.db.patch(box._id, { instanceId: args.instanceId, updatedAt: Date.now() });
+      await ctx.scheduler.runAfter(0, internal.provisioning.terminateBox, {
+        boxId: box.boxId,
+        instanceId: args.instanceId,
+      });
+      return null;
+    }
     await ctx.db.patch(box._id, {
       instanceId: args.instanceId,
       callbackSecretHash: args.callbackSecretHash,
@@ -277,6 +288,7 @@ export const markTerminated = internalMutation({
       status: "terminated",
       terminatedAt: Date.now(),
       updatedAt: Date.now(),
+      callbackSecretHash: "", // revoke the box's callback credential on teardown
     });
     await ctx.db.insert("agentEvents", {
       companyId: box.companyId,
@@ -301,6 +313,7 @@ export const markFailed = internalMutation({
       status: "failed",
       error: args.error.slice(0, 500),
       updatedAt: Date.now(),
+      callbackSecretHash: "", // revoke the box's callback credential on failure
     });
     await ctx.db.insert("agentEvents", {
       companyId: box.companyId,

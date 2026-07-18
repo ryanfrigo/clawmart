@@ -84,7 +84,11 @@ you review** — never as the concept company "going live for real" or the produ
 ## Follow-ups (not in this change)
 
 - Per-box IAM isolation (currently the worker role reads `/clawmart/box/*`; tighten
-  to the box's own path via ABAC before multi-tenant use).
+  to the box's own path via ABAC before multi-tenant use). The compensating control
+  today is an explicit IMDS hop limit of 1 keeping the role unreachable from the
+  container — intentional, but scoping the policy is the real fix.
+- Restrict worker egress to the hosts a box actually needs (github.com,
+  openrouter.ai, the Convex site) via an egress security group instead of allow-all.
 - Single-source the box user-data (today `infra/cloud-init.sh` and the embedded
   template in `convex/provisioning.ts` are kept in sync by hand).
 - Publish the agent image in CI instead of a manual `docker build && push`.

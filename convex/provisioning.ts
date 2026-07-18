@@ -26,6 +26,7 @@ import {
   EC2Client,
   RunInstancesCommand,
   TerminateInstancesCommand,
+  DescribeInstancesCommand,
 } from "@aws-sdk/client-ec2";
 import {
   SSMClient,
@@ -101,7 +102,12 @@ export const provisionBox = internalAction({
     const prefix = `/clawmart/box/${args.boxId}`;
     const callbackSecret = randomBytes(24).toString("hex");
     const callbackSecretHash = createHash("sha256").update(callbackSecret).digest("hex");
-    const maxRuntimeMin = Number(process.env.CLAWMART_BOX_MAX_RUNTIME_MIN ?? 60);
+    // Validated: a NaN/negative/huge value must never reach `shutdown -h +N` and
+    // silently disable the box's hard cost cap. Clamp to [1, 1440] minutes.
+    let maxRuntimeMin = Math.floor(Number(process.env.CLAWMART_BOX_MAX_RUNTIME_MIN ?? 60));
+    if (!Number.isFinite(maxRuntimeMin) || maxRuntimeMin < 1 || maxRuntimeMin > 1440) {
+      maxRuntimeMin = 60;
+    }
 
     const boxConfig = {
       boxId: args.boxId,
@@ -118,6 +124,7 @@ export const provisionBox = internalAction({
 
     const ssm = new SSMClient(cfg);
     const ec2 = new EC2Client(cfg);
+    let launchedInstanceId: string | undefined;
     try {
       const put = (name: string, value: string, secure: boolean) =>
         ssm.send(new PutParameterCommand({
@@ -162,22 +169,37 @@ export const provisionBox = internalAction({
           : {}),
         UserData: userData,
         InstanceInitiatedShutdownBehavior: "terminate",
-        MetadataOptions: { HttpTokens: "required", HttpEndpoint: "enabled" },
+        // IMDSv2 required + hop limit 1 keeps the instance role unreachable from
+        // the agent container (Docker bridge), the compensating control that
+        // bounds the shared /clawmart/box/* SSM read. Set explicitly, not by luck.
+        MetadataOptions: {
+          HttpTokens: "required",
+          HttpEndpoint: "enabled",
+          HttpPutResponseHopLimit: 1,
+        },
         TagSpecifications: [
           { ResourceType: "instance", Tags: tags },
           { ResourceType: "volume", Tags: tags },
         ],
       }));
 
-      const instanceId = run.Instances?.[0]?.InstanceId;
-      if (!instanceId) { await fail("RunInstances returned no instance id"); return null; }
+      launchedInstanceId = run.Instances?.[0]?.InstanceId;
+      if (!launchedInstanceId) { await fail("RunInstances returned no instance id"); return null; }
 
       await ctx.runMutation(internal.boxes.recordLaunch, {
         boxId: args.boxId,
-        instanceId,
+        instanceId: launchedInstanceId,
         callbackSecretHash,
       });
     } catch (e) {
+      // If the instance launched but bookkeeping failed, don't orphan it —
+      // terminate it so nothing runs unbilled and untracked.
+      if (launchedInstanceId) {
+        await ctx.scheduler.runAfter(0, internal.provisioning.terminateBox, {
+          boxId: args.boxId,
+          instanceId: launchedInstanceId,
+        });
+      }
       await fail(`provision error: ${e instanceof Error ? e.message : String(e)}`);
     }
     return null;
@@ -208,6 +230,50 @@ export const terminateBox = internalAction({
       }
     }
     await ctx.runMutation(internal.boxes.markTerminated, { boxId: args.boxId });
+    return null;
+  },
+});
+
+/**
+ * Control-plane backstop reaper (cron). The box self-terminates, but if cloud-init
+ * never ran or the shutdown timer was somehow lost, this independently kills any
+ * Project=clawmart instance older than the max runtime + a grace buffer. No-op if
+ * AWS creds are unset. Defense-in-depth against runaway cost.
+ */
+export const reapStaleBoxes = internalAction({
+  args: {},
+  handler: async (ctx): Promise<null> => {
+    const cfg = creds();
+    if (!cfg) return null;
+    let maxRuntimeMin = Math.floor(Number(process.env.CLAWMART_BOX_MAX_RUNTIME_MIN ?? 60));
+    if (!Number.isFinite(maxRuntimeMin) || maxRuntimeMin < 1 || maxRuntimeMin > 1440) {
+      maxRuntimeMin = 60;
+    }
+    const cutoff = Date.now() - (maxRuntimeMin + 15) * 60 * 1000; // +15m grace
+    try {
+      const res = await new EC2Client(cfg).send(
+        new DescribeInstancesCommand({
+          Filters: [
+            { Name: "tag:Project", Values: ["clawmart"] },
+            { Name: "instance-state-name", Values: ["running", "pending"] },
+          ],
+        })
+      );
+      for (const r of res.Reservations ?? []) {
+        for (const inst of r.Instances ?? []) {
+          const launched = inst.LaunchTime ? new Date(inst.LaunchTime).getTime() : 0;
+          if (!launched || launched > cutoff) continue;
+          const boxId = inst.Tags?.find((t) => t.Key === "ClawmartBoxId")?.Value;
+          if (!boxId || !inst.InstanceId) continue;
+          await ctx.scheduler.runAfter(0, internal.provisioning.terminateBox, {
+            boxId,
+            instanceId: inst.InstanceId,
+          });
+        }
+      }
+    } catch {
+      // best-effort; the box's own self-terminate remains the primary cap
+    }
     return null;
   },
 });

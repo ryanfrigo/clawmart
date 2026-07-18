@@ -56,7 +56,9 @@ http.route({
     if (!boxId) return new Response("no boxId", { status: 400 });
 
     const box = await ctx.runQuery(internal.boxes.getByBoxId, { boxId });
-    if (!box || !box.callbackSecretHash) {
+    // Only a live box with an active callback credential may write to the feed —
+    // a terminated/failed box has its hash cleared, so leaked secrets go dead.
+    if (!box || box.status !== "running" || !box.callbackSecretHash) {
       return new Response("unknown box", { status: 404 });
     }
     if (!timingSafeEqual(await sha256Hex(secret), box.callbackSecretHash)) {
