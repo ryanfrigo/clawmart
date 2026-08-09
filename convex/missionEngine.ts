@@ -1,13 +1,15 @@
 /**
  * Clawmart Agency — mission engine (the action layer).
  *
- * Three actions, chained through the Convex scheduler so a mission is durable
+ * Four actions, chained through the Convex scheduler so a mission is durable
  * and has no single-function timeout ceiling (the same "no EC2" reasoning as
  * docs/COMPANY-STUDIO.md):
  *
- *   planMission — the orchestrator staffs the roster and writes the task DAG
- *   tick        — claims whatever is now ready and fans out runTask
- *   runTask     — one specialist does one task, then ticks the mission again
+ *   planMission   — the orchestrator staffs the roster and writes the task DAG
+ *   tick          — claims whatever is now ready and fans out runTask
+ *   runTask       — one specialist does one task, then ticks the mission again
+ *   distillMemory — after a settled mission, writes what the team learned into
+ *                   company memory so the NEXT mission does not start cold
  *
  * Parallelism falls out of that loop: a settling task ticks the mission, which
  * claims every task its completion unblocked, up to MAX_CONCURRENT_TASKS. This
@@ -26,8 +28,10 @@ import { extractJson } from "./lib/agents";
 import {
   buildTaskMessages,
   getAgent,
+  memoryMessages,
   normalizeTaskOutput,
   planMessages,
+  validateLearnings,
   validatePlan,
   type ChatMessage,
 } from "./lib/roster";
@@ -42,6 +46,8 @@ import {
 /** Output ceiling per task — bounds cost and keeps free endpoints in budget. */
 const TASK_MAX_TOKENS = 3000;
 const PLAN_MAX_TOKENS = 2000;
+/** Distilling is a summarizer, not a planner: a handful of sentences. */
+const MEMORY_MAX_TOKENS = 700;
 
 /** Appended after a model returns unparseable output, before the next attempt. */
 const JSON_NUDGE: ChatMessage = {
@@ -85,7 +91,7 @@ export const planMission = internalAction({
     // Missing mission, duplicate schedule, or a cancel that beat us here.
     if (!context || context.status !== "planning") return null;
 
-    const messages = planMessages(context.goal, context.company);
+    const messages = planMessages(context.goal, context.company, context.memory);
     const cooled = new Set(await ctx.runQuery(internal.missions.cooledDownModels, {}));
     // Planning is the highest-leverage call of the whole mission — a bad DAG
     // wastes every downstream task — so it always asks for the premium tier of
@@ -182,6 +188,7 @@ export const runTask = internalAction({
       company: context.company,
       brief: context.brief,
       upstream: context.upstream,
+      memory: context.memory,
     });
 
     const cooled = new Set(await ctx.runQuery(internal.missions.cooledDownModels, {}));
@@ -222,6 +229,69 @@ export const runTask = internalAction({
     }
 
     await settle(lastError);
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Distill the mission into company memory
+// ---------------------------------------------------------------------------
+
+/**
+ * One model call that turns a finished mission into durable company memory.
+ *
+ * Scheduled by missions.claimReadyTasks at the moment the mission settles
+ * `done`. Entirely best-effort: the mission is ALREADY settled before this runs
+ * and nothing here writes to it, so a dead chain, a rate-limited endpoint, or
+ * garbage JSON simply means this company learns nothing from this mission. A
+ * missed learning is cheap; reopening a completed mission is not.
+ */
+export const distillMemory = internalAction({
+  args: { missionId: v.id("missions") },
+  handler: async (ctx, args): Promise<null> => {
+    const outcome = await ctx.runQuery(internal.missions.missionOutcome, {
+      missionId: args.missionId,
+    });
+    // Not settled done, or nobody left a handoff worth learning from.
+    if (!outcome) return null;
+
+    const messages = memoryMessages({
+      goal: outcome.goal,
+      company: outcome.company,
+      deliverables: outcome.deliverables,
+    });
+
+    const cooled = new Set(await ctx.runQuery(internal.missions.cooledDownModels, {}));
+    // Worker tier: summarizing handoffs the specialists already wrote is the
+    // cheapest work in the mission, and it must never outspend the mission.
+    const chain = chooseChain(outcome.strategy as Strategy, "worker", cooled);
+
+    let nudged = false;
+
+    for (const model of chain) {
+      try {
+        const result = await callModel(
+          model,
+          nudged ? [...messages, JSON_NUDGE] : messages,
+          MEMORY_MAX_TOKENS
+        );
+        await ctx.runMutation(internal.missions.reportModelResult, { model, ok: true });
+
+        const learnings = validateLearnings(extractJson(result.text));
+        await ctx.runMutation(internal.missions.rememberLearnings, {
+          missionId: args.missionId,
+          learnings,
+        });
+        return null;
+      } catch (err) {
+        const outcomeOfCall = await recordFailure(ctx, model, err);
+        if (!(err instanceof ModelCallError)) nudged = true;
+        if (!outcomeOfCall.keepGoing) break;
+      }
+    }
+
+    // Chain exhausted. Nothing to report and nothing to fail — the mission's
+    // deliverables are already saved and its status is final.
     return null;
   },
 });

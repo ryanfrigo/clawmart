@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { toast } from "sonner";
-import { Check, ChevronDown, Clock, Loader2, Minus, Send, X } from "lucide-react";
+import { Check, ChevronDown, Clock, Loader2, Minus, Send, Trash2, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { STRATEGIES, STRATEGY_LABELS, type Strategy } from "../../../convex/lib/router";
@@ -242,6 +242,109 @@ function TaskRow({
   );
 }
 
+/* ---------------- company memory ---------------- */
+
+const MEMORY_ERRORS: Record<string, string> = {
+  unauthenticated: "Please sign in to edit what the team remembers.",
+  not_found: "That learning is already gone.",
+};
+
+/**
+ * What finished missions taught the agency about this company. Every later plan
+ * and every brief is written with these lines in front of it, so a wrong one
+ * compounds across every future mission — hence the per-row remove.
+ */
+function TeamMemory({ companyId }: { companyId: Id<"companies"> }) {
+  const memory = useQuery(api.missions.listMemory, { companyId });
+  const forgetMemory = useMutation(api.missions.forgetMemory);
+  const [open, setOpen] = useState(false);
+  const [removing, setRemoving] = useState<Id<"companyMemory"> | null>(null);
+
+  async function onForget(memoryId: Id<"companyMemory">) {
+    if (!window.confirm("Remove this learning? Future missions will stop seeing it.")) return;
+    setRemoving(memoryId);
+    try {
+      await forgetMemory({ memoryId });
+      toast.success("Learning removed.");
+    } catch (err) {
+      const code = err instanceof ConvexError ? String(err.data) : "";
+      toast.error(MEMORY_ERRORS[code] ?? "Couldn't remove that learning. Please try again.");
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  return (
+    <div className="mt-6">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        {/* Eyebrow's classes inline — a <p> is not valid inside a <button>. */}
+        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          What the team has learned
+          {memory && memory.length > 0 ? ` · ${memory.length}` : ""}
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            "size-4 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          {memory === undefined ? (
+            <div className="shimmer-line h-14 rounded-xl" />
+          ) : memory.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border bg-card/30 p-5 text-center text-[13px] leading-relaxed text-muted-foreground">
+              Nothing yet. Each time a mission finishes, the team distills what it learned
+              about this company and carries it into the next one.
+            </p>
+          ) : (
+            <>
+              <ul className="space-y-2">
+                {memory.map((m) => (
+                  <li
+                    key={m._id}
+                    className="flex items-start gap-3 rounded-xl border border-border bg-card/40 p-3"
+                  >
+                    <span className="min-w-0 flex-1 text-[13px] leading-relaxed text-foreground/90">
+                      {m.text}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onForget(m._id)}
+                      disabled={removing === m._id}
+                      aria-label="Remove this learning"
+                      title="Remove this learning"
+                      className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive disabled:opacity-50"
+                    >
+                      {removing === m._id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3.5" />
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground/70">
+                AI-distilled from finished missions, then put in front of every new one.
+                Remove anything that reads wrong before it shapes the next brief.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- root ---------------- */
 
 /**
@@ -387,6 +490,8 @@ export function MissionPanel({ companyId }: { companyId: Id<"companies"> }) {
           </Button>
         </div>
       </form>
+
+      <TeamMemory companyId={companyId} />
 
       {/* mission history */}
       <div className="mt-6">

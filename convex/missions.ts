@@ -18,7 +18,14 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { getAgent, MAX_TASKS } from "./lib/roster";
+import {
+  getAgent,
+  MAX_COMPANY_MEMORY,
+  MAX_MEMORY_LEARNINGS,
+  MAX_TASKS,
+  MEMORY_TEXT_MAX,
+  renderMemory,
+} from "./lib/roster";
 import { nextCooldownMs } from "./lib/router";
 
 const GOAL_MIN = 12;
@@ -93,6 +100,20 @@ async function companyBrief(ctx: QueryCtx, company: Doc<"companies">): Promise<s
     }
   }
   return parts.join("\n").slice(0, 2000);
+}
+
+/**
+ * What earlier missions taught the army about this company, budgeted for a
+ * prompt. Newest first: renderMemory drops whole lines off the end, so a
+ * company at the row cap sheds its oldest learnings, never its freshest.
+ */
+async function companyMemory(ctx: QueryCtx, companyId: Id<"companies">): Promise<string> {
+  const rows = await ctx.db
+    .query("companyMemory")
+    .withIndex("by_company", (q) => q.eq("companyId", companyId))
+    .order("desc")
+    .take(MAX_COMPANY_MEMORY);
+  return renderMemory(rows.map((r) => r.text));
 }
 
 // ---------------------------------------------------------------------------
@@ -187,6 +208,27 @@ export const cancel = mutation({
   },
 });
 
+/**
+ * Delete one learning. Owner-only.
+ *
+ * Memory is injected into every future mission for the company, so a wrong
+ * learning compounds — it must be removable by hand, or it quietly poisons
+ * every plan and every brief from here on.
+ */
+export const forgetMemory = mutation({
+  args: { memoryId: v.id("companyMemory") },
+  handler: async (ctx, args): Promise<null> => {
+    const identity = await requireIdentity(ctx);
+    const row = await ctx.db.get(args.memoryId);
+    // Same shape as cancel(): missing and not-yours are indistinguishable.
+    if (!row) throw new ConvexError("not_found");
+    const company = await ctx.db.get(row.companyId);
+    if (!company || company.ownerId !== identity.subject) throw new ConvexError("not_found");
+    await ctx.db.delete(args.memoryId);
+    return null;
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Public queries
 // ---------------------------------------------------------------------------
@@ -216,6 +258,30 @@ export const listForCompany = query({
       failedCount: m.failedCount,
       createdAt: m.createdAt,
       finishedAt: m.finishedAt,
+    }));
+  },
+});
+
+/** What the team has learned about this company. Owner-only, newest first. */
+export const listMemory = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const company = await ctx.db.get(args.companyId);
+    if (!company || company.ownerId !== identity.subject) return [];
+
+    const rows = await ctx.db
+      .query("companyMemory")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .order("desc")
+      .take(MAX_COMPANY_MEMORY);
+
+    return rows.map((r) => ({
+      _id: r._id,
+      text: r.text,
+      sourceMissionId: r.sourceMissionId,
+      createdAt: r.createdAt,
     }));
   },
 });
@@ -292,6 +358,7 @@ export const planContext = internalQuery({
       goal: mission.goal,
       strategy: mission.strategy,
       company: await companyBrief(ctx, company),
+      memory: await companyMemory(ctx, company._id),
     };
   },
 });
@@ -469,6 +536,17 @@ export const claimReadyTasks = internalMutation({
             ? `Mission complete — ${done}/${tasks.length} deliverables ready${failed ? ` (${failed} failed)` : ""}.`
             : "Mission failed — no specialist completed their task."
         );
+        if (done > 0) {
+          // Distill what the team learned into company memory, so the next
+          // mission starts from here instead of from zero. Scheduled from
+          // inside this transactional settle, and the patch above takes the
+          // mission out of "running", so it fires exactly once per mission
+          // however many ticks race. Best-effort by design: the mission is
+          // already `done` and nothing the distiller does can reopen it.
+          await ctx.scheduler.runAfter(0, internal.missionEngine.distillMemory, {
+            missionId: args.missionId,
+          });
+        }
       }
     }
 
@@ -511,6 +589,7 @@ export const taskContext = internalQuery({
       brief: task.brief,
       company: await companyBrief(ctx, company),
       upstream,
+      memory: await companyMemory(ctx, task.companyId),
     };
   },
 });
@@ -587,6 +666,102 @@ export const failTask = internalMutation({
       task.agentKey,
       "status",
       `${getAgent(task.agentKey)?.name ?? task.agentKey} failed: ${args.error.slice(0, 160)}`
+    );
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Internal: company memory
+// ---------------------------------------------------------------------------
+
+/** What the distiller reads: the goal, the company, and every handoff kept. */
+export const missionOutcome = internalQuery({
+  args: { missionId: v.id("missions") },
+  handler: async (ctx, args) => {
+    const mission = await ctx.db.get(args.missionId);
+    // Only a settled, successful mission has anything to learn from.
+    if (!mission || mission.status !== "done") return null;
+    const company = await ctx.db.get(mission.companyId);
+    if (!company) return null;
+
+    const tasks = await ctx.db
+      .query("missionTasks")
+      .withIndex("by_mission", (q) => q.eq("missionId", args.missionId))
+      .collect();
+
+    const deliverables = tasks
+      .filter((t) => t.status === "done" && !!t.handoff)
+      .sort((a, b) => a.index - b.index)
+      .map((t) => ({
+        agent: getAgent(t.agentKey)?.name ?? t.agentKey,
+        title: t.title,
+        handoff: t.handoff ?? "",
+      }));
+    if (deliverables.length === 0) return null;
+
+    return {
+      goal: mission.goal,
+      strategy: mission.strategy,
+      company: await companyBrief(ctx, company),
+      deliverables,
+    };
+  },
+});
+
+/**
+ * File distilled learnings against the company, oldest rows evicted.
+ *
+ * The cap is enforced on write rather than on read: memory is injected into
+ * every future prompt, so an unbounded table would be an unbounded cost, not
+ * just an unbounded row count.
+ */
+export const rememberLearnings = internalMutation({
+  args: { missionId: v.id("missions"), learnings: v.array(v.string()) },
+  handler: async (ctx, args): Promise<null> => {
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission) return null;
+
+    const existing = await ctx.db
+      .query("companyMemory")
+      .withIndex("by_company", (q) => q.eq("companyId", mission.companyId))
+      .collect();
+    // Missions on one company overlap heavily, so the same conclusion gets
+    // re-derived often. Storing it twice would just spend the cap twice.
+    const seen = new Set(existing.map((r) => r.text.trim().toLowerCase()));
+
+    const now = Date.now();
+    let stored = 0;
+    for (const raw of args.learnings.slice(0, MAX_MEMORY_LEARNINGS)) {
+      const text = raw.trim().replace(/\s+/g, " ").slice(0, MEMORY_TEXT_MAX);
+      if (!text || seen.has(text.toLowerCase())) continue;
+      seen.add(text.toLowerCase());
+      await ctx.db.insert("companyMemory", {
+        companyId: mission.companyId,
+        text,
+        sourceMissionId: args.missionId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      stored += 1;
+    }
+    if (stored === 0) return null;
+
+    const rows = await ctx.db
+      .query("companyMemory")
+      .withIndex("by_company", (q) => q.eq("companyId", mission.companyId))
+      .order("desc")
+      .collect();
+    for (const row of rows.slice(MAX_COMPANY_MEMORY)) {
+      await ctx.db.delete(row._id);
+    }
+
+    await event(
+      ctx,
+      mission.companyId,
+      EVENT_KEY,
+      "status",
+      `Filed ${stored} learning${stored === 1 ? "" : "s"} to company memory.`
     );
     return null;
   },

@@ -186,6 +186,20 @@ export default defineSchema({
     .index("by_mission", ["missionId"])
     .index("by_mission_status", ["missionId", "status"]),
 
+  // What the army has learned about one company, distilled from settled
+  // missions and injected into every later plan/task prompt so missions
+  // compound instead of starting cold. One row per durable learning; capped at
+  // MAX_COMPANY_MEMORY rows per company (missions.rememberLearnings) so it can
+  // never grow without bound, and every row is individually deletable by the
+  // owner — a wrong learning would otherwise poison every future mission.
+  companyMemory: defineTable({
+    companyId: v.id("companies"),
+    text: v.string(),
+    sourceMissionId: v.optional(v.id("missions")), // provenance; optional by design
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_company", ["companyId"]),
+
   // Per-model circuit breaker for the free-inference router (lib/router.ts).
   // Free endpoints rate-limit constantly; this keeps a flapping model out of
   // rotation across action invocations instead of retrying it every task.
