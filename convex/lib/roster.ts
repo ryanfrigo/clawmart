@@ -447,6 +447,72 @@ export type ChatMessage = { role: "system" | "user"; content: string };
 /** Max characters of upstream context passed into a single worker prompt. */
 export const CONTEXT_CHAR_BUDGET = 6000;
 
+/**
+ * Max characters of company memory injected into a single prompt.
+ *
+ * Deliberately a small fraction of CONTEXT_CHAR_BUDGET: memory is a nice-to-
+ * have, the agent's brief is not. It is also spent LAST (see buildTaskMessages)
+ * so it can only ever consume what the goal, brief, and teammate handoffs left
+ * behind.
+ */
+export const MEMORY_CHAR_BUDGET = 1200;
+
+/**
+ * Render stored learnings into the block injected into prompts.
+ *
+ * Whole lines only: half a learning reads as a different claim than the whole
+ * one, and a truncated "pricing is per-seat, not usage-based" inverts its own
+ * meaning. Callers pass newest-first, so the budget sheds the oldest.
+ */
+export function renderMemory(learnings: readonly string[]): string {
+  const lines: string[] = [];
+  let used = 0;
+  for (const raw of learnings) {
+    const text = raw.trim();
+    if (!text) continue;
+    const line = `- ${text}`;
+    if (used + line.length + 1 > MEMORY_CHAR_BUDGET) break;
+    lines.push(line);
+    used += line.length + 1;
+  }
+  return lines.join("\n");
+}
+
+const MEMORY_HEADING = "\n\nWHAT THIS COMPANY HAS ALREADY LEARNED\n";
+
+/**
+ * The memory block, given whatever budget the protected content left over.
+ *
+ * Drops whole bullets to fit, never bytes. renderMemory keeps whole lines
+ * against MEMORY_CHAR_BUDGET, but that is not the budget this receives — a task
+ * with dependencies gets whatever the head and the live handoffs left, which is
+ * frequently smaller. A raw slice there would cut the last bullet mid-sentence,
+ * and losing a trailing clause is not a cosmetic truncation: "pricing is
+ * per-seat, not usage-based" becomes "pricing is per-seat", the exact inversion
+ * renderMemory exists to prevent — asserted to the specialist under a heading
+ * that presents it as established company fact. If not even one bullet fits,
+ * the block is omitted entirely.
+ */
+function memorySection(memory: string | undefined, budget: number): string {
+  if (!memory || budget <= 200) return "";
+
+  const full = MEMORY_HEADING + memory;
+  if (full.length <= budget) return full;
+
+  const room = budget - MEMORY_HEADING.length;
+  if (room <= 0) return "";
+
+  const kept: string[] = [];
+  let used = 0;
+  for (const line of memory.split("\n")) {
+    const cost = kept.length === 0 ? line.length : line.length + 1;
+    if (used + cost > room) break;
+    kept.push(line);
+    used += cost;
+  }
+  return kept.length > 0 ? MEMORY_HEADING + kept.join("\n") : "";
+}
+
 export interface TaskContext {
   /** The mission's overall goal — every agent needs to see the point. */
   goal: string;
@@ -456,6 +522,8 @@ export interface TaskContext {
   brief: string;
   /** Handoffs from the tasks this one depends on, in DAG order. */
   upstream: { agent: string; title: string; handoff: string }[];
+  /** Durable learnings from this company's earlier missions (see renderMemory). */
+  memory?: string;
 }
 
 /**
@@ -484,7 +552,10 @@ export function buildTaskMessages(agent: RosterAgent, ctx: TaskContext): ChatMes
       ? `\n\nWHAT YOUR TEAMMATES ALREADY DELIVERED\n${upstream}`.slice(0, remaining)
       : "";
 
-  const user = head + upstreamBlock;
+  // Memory is spent last, out of what is left after this mission's own live
+  // handoffs. Past learnings must never displace the work of the specialists
+  // this task actually depends on.
+  const user = head + upstreamBlock + memorySection(ctx.memory, remaining - upstreamBlock.length);
 
   return [
     {
@@ -517,7 +588,8 @@ export function rosterManifest(): string {
   }).join("\n\n");
 }
 
-export function planMessages(goal: string, company: string): ChatMessage[] {
+export function planMessages(goal: string, company: string, memory?: string): ChatMessage[] {
+  const head = `COMPANY\n${company}\n\nMISSION GOAL\n${goal}`.slice(0, CONTEXT_CHAR_BUDGET);
   return [
     {
       role: "system",
@@ -546,9 +618,106 @@ Return ONLY a single valid JSON object, no fences:
     },
     {
       role: "user",
-      content: `COMPANY\n${company}\n\nMISSION GOAL\n${goal}`.slice(0, CONTEXT_CHAR_BUDGET),
+      // Same rule as buildTaskMessages: the goal and company survive intact,
+      // memory only gets what they left over.
+      content: head + memorySection(memory, CONTEXT_CHAR_BUDGET - head.length),
     },
   ];
+}
+
+// ---------------------------------------------------------------------------
+// Company memory (distilled from a settled mission)
+// ---------------------------------------------------------------------------
+
+/** Learnings kept from one mission. Few and durable beats many and noisy. */
+export const MIN_MEMORY_LEARNINGS = 2;
+export const MAX_MEMORY_LEARNINGS = 5;
+/** One learning is one sentence — long enough to be specific, short to render. */
+export const MEMORY_TEXT_MAX = 280;
+/** Hard ceiling on stored learnings per company; the oldest fall off. */
+export const MAX_COMPANY_MEMORY = 24;
+
+const MIN_LEARNING_CHARS = 12;
+
+export interface MemoryContext {
+  /** The goal the mission was dispatched at. */
+  goal: string;
+  /** Company one-liner, same string every agent on the mission saw. */
+  company: string;
+  /** Handoffs from the tasks that actually completed. */
+  deliverables: { agent: string; title: string; handoff: string }[];
+}
+
+/**
+ * Prompt for distilling one settled mission into durable company memory.
+ *
+ * This prompt is the narrowest in the codebase on purpose: everything it emits
+ * is injected into every FUTURE mission for this company, so an invented number
+ * here would be laundered into an unbounded number of later prompts as
+ * established fact. Hence TRUST_RULES plus an explicit instruction that a
+ * learning may only restate what the handoffs below actually contain.
+ */
+export function memoryMessages(ctx: MemoryContext): ChatMessage[] {
+  const delivered = ctx.deliverables
+    .map((d) => `- ${d.agent} ("${d.title}"): ${d.handoff}`)
+    .join("\n");
+
+  const head = `COMPANY\n${ctx.company}\n\nMISSION GOAL\n${ctx.goal}`.slice(0, CONTEXT_CHAR_BUDGET);
+  const remaining = CONTEXT_CHAR_BUDGET - head.length;
+  const deliveredBlock =
+    delivered && remaining > 200
+      ? `\n\nWHAT THE TEAM DELIVERED\n${delivered}`.slice(0, remaining)
+      : "";
+
+  return [
+    {
+      role: "system",
+      content: `You are the Chief of Staff of an AI agency, writing down what the team learned about this company after finishing a mission.
+
+Write ${MIN_MEMORY_LEARNINGS}-${MAX_MEMORY_LEARNINGS} durable learnings that a FUTURE mission on THIS company must know before it starts.
+
+Rules:
+- Ground every learning ONLY in what the specialists actually delivered below. If it is not in their handoffs, it does not exist and you must not write it.
+- Never state a number, metric, price, date, or count that does not already appear in the deliverables below.
+- A learning is a decision made, a constraint discovered, or a fact established about this company — never a description of work performed. "The pricing analyst wrote a memo" is worthless; "pricing is per-seat with a $19 entry tier, chosen over usage-based" is a learning.
+- Durable: it should still be true and useful a month from now. Skip anything that was only true for this one mission.
+- One sentence each, under ${MEMORY_TEXT_MAX} characters, specific to this company.
+- If the deliverables support fewer than ${MIN_MEMORY_LEARNINGS} real learnings, return only the ones they support. Never pad.
+${TRUST_RULES}
+
+Return ONLY a single valid JSON object, no fences:
+{"learnings": ["...", "..."]}`,
+    },
+    { role: "user", content: head + deliveredBlock },
+  ];
+}
+
+/**
+ * Coerce raw distiller JSON into storable learnings, or throw.
+ *
+ * Throwing on an empty result is deliberate — it lets the caller advance its
+ * model chain instead of recording nothing, exactly like normalizeTaskOutput.
+ */
+export function validateLearnings(raw: Record<string, unknown>): string[] {
+  const rawList = Array.isArray(raw.learnings) ? raw.learnings : [];
+
+  const seen = new Set<string>();
+  const learnings: string[] = [];
+  for (const entry of rawList) {
+    if (typeof entry !== "string") continue;
+    // Collapse whitespace: a learning is rendered as one bullet line later, and
+    // an embedded newline would forge a second bullet.
+    const text = entry.trim().replace(/\s+/g, " ").slice(0, MEMORY_TEXT_MAX);
+    if (text.length < MIN_LEARNING_CHARS) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    learnings.push(text);
+    if (learnings.length >= MAX_MEMORY_LEARNINGS) break;
+  }
+
+  if (learnings.length === 0) throw new Error("distiller returned no usable learnings");
+  return learnings;
 }
 
 // ---------------------------------------------------------------------------

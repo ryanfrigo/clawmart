@@ -3,6 +3,7 @@ import {
   CONTEXT_CHAR_BUDGET,
   DIVISIONS,
   MAX_TASKS,
+  MEMORY_CHAR_BUDGET,
   MIN_TASKS,
   ROSTER,
   agentsByDivision,
@@ -10,10 +11,12 @@ import {
   getAgent,
   normalizeTaskOutput,
   planMessages,
+  renderMemory,
   validatePlan,
 } from "../convex/lib/roster";
 
 const TIERS = ["worker", "premium"];
+const MEMORY_HEADING = "WHAT THIS COMPANY HAS ALREADY LEARNED";
 
 describe("roster definitions", () => {
   it("has unique, plan-safe keys", () => {
@@ -137,6 +140,61 @@ describe("buildTaskMessages", () => {
     expect(user).toContain("YOUR TASK");
   });
 
+  it("injects company memory when there is any, and says nothing when there is not", () => {
+    const memory = "- Pricing is per-seat, chosen over usage-based.\n- Owner-operators, not chains.";
+    const user = buildTaskMessages(getAgent("pricing-analyst")!, { ...ctx, memory })[1].content;
+    expect(user).toContain(MEMORY_HEADING);
+    expect(user).toContain("Pricing is per-seat, chosen over usage-based.");
+    expect(user).toContain("Owner-operators, not chains.");
+    // No memory (a company's first mission) and empty memory both stay silent —
+    // an empty heading would read as "we learned nothing", which is not a fact.
+    expect(buildTaskMessages(getAgent("pricing-analyst")!, ctx)[1].content).not.toContain(
+      MEMORY_HEADING
+    );
+    expect(
+      buildTaskMessages(getAgent("pricing-analyst")!, { ...ctx, memory: "" })[1].content
+    ).not.toContain(MEMORY_HEADING);
+  });
+
+  it("never lets memory displace the goal, the company, the brief or live handoffs", () => {
+    const user = buildTaskMessages(getAgent("pricing-analyst")!, {
+      ...ctx,
+      memory: "m".repeat(50_000),
+    })[1].content;
+    expect(user.length).toBeLessThanOrEqual(CONTEXT_CHAR_BUDGET);
+    // 50k unbroken chars is a single "line", and no whole bullet that size can
+    // fit, so the block is dropped rather than sliced mid-claim.
+    expect(user).not.toContain("mmm");
+    // Memory is spent last, so everything this task is actually accountable for
+    // is still there verbatim — a learning from a past mission must never cost
+    // the agent its own brief.
+    expect(user).toContain(ctx.goal);
+    expect(user).toContain(ctx.company);
+    expect(user).toContain(ctx.brief);
+    for (const up of ctx.upstream) {
+      expect(user).toContain(up.handoff);
+    }
+  });
+
+  it("drops memory entirely when the head and the handoffs already fill the budget", () => {
+    const user = buildTaskMessages(getAgent("chief-of-staff")!, {
+      goal: "Ship a paid beta in six weeks",
+      company: "BakeCost — margin calculator for small bakeries",
+      brief: "b".repeat(1000),
+      upstream: Array.from({ length: 8 }, (_, i) => ({
+        agent: `Agent ${i}`,
+        title: `Task ${i}`,
+        handoff: "h".repeat(2000),
+      })),
+      memory: "m".repeat(4000),
+    })[1].content;
+    expect(user.length).toBe(CONTEXT_CHAR_BUDGET);
+    expect(user).toContain("b".repeat(1000));
+    expect(user).toContain("WHAT YOUR TEAMMATES ALREADY DELIVERED");
+    expect(user).not.toContain(MEMORY_HEADING);
+    expect(user).not.toContain("mmm");
+  });
+
   it("clamps the user message to CONTEXT_CHAR_BUDGET no matter how big the DAG gets", () => {
     const user = buildTaskMessages(getAgent("chief-of-staff")!, {
       goal: "g".repeat(4000),
@@ -183,6 +241,53 @@ describe("planMessages", () => {
     expect(user.content).toContain("BakeCost — bakery margins");
     const huge = planMessages("g".repeat(9000), "c".repeat(9000))[1].content;
     expect(huge.length).toBe(CONTEXT_CHAR_BUDGET);
+  });
+
+  it("shows the planner what the company already learned, and omits it when it has not", () => {
+    const memory = "- Owner-operators sign up; chains do not.";
+    const withMemory = planMessages("Launch the waitlist", "BakeCost", memory)[1].content;
+    expect(withMemory).toContain(MEMORY_HEADING);
+    expect(withMemory).toContain("Owner-operators sign up; chains do not.");
+    expect(user.content).not.toContain(MEMORY_HEADING);
+    expect(planMessages("Launch the waitlist", "BakeCost", "")[1].content).not.toContain(
+      MEMORY_HEADING
+    );
+  });
+
+  it("never lets memory displace the goal or the company", () => {
+    const memory = "m".repeat(20_000);
+    const huge = planMessages("Launch the waitlist", "BakeCost — bakery margins", memory)[1].content;
+    expect(huge.length).toBeLessThanOrEqual(CONTEXT_CHAR_BUDGET);
+    expect(huge).not.toContain("mmm"); // dropped whole, never sliced mid-claim
+    expect(huge).toContain("Launch the waitlist");
+    expect(huge).toContain("BakeCost — bakery margins");
+    // A goal and company that already fill the budget leave memory nothing.
+    const full = planMessages("g".repeat(9000), "c".repeat(9000), "m".repeat(4000))[1].content;
+    expect(full.length).toBe(CONTEXT_CHAR_BUDGET);
+    expect(full).not.toContain(MEMORY_HEADING);
+    expect(full).not.toContain("mmm");
+  });
+});
+
+describe("renderMemory", () => {
+  it("keeps whole learnings only, newest first, and drops blanks", () => {
+    expect(renderMemory(["Pricing is per-seat.", "  ", "Wedge is owner-operators."])).toBe(
+      "- Pricing is per-seat.\n- Wedge is owner-operators."
+    );
+    expect(renderMemory([])).toBe("");
+  });
+
+  it("sheds the oldest learnings whole rather than truncating one mid-sentence", () => {
+    // Half a learning reads as a different claim than the whole one: a clipped
+    // "pricing is per-seat, not usage-based" inverts its own meaning.
+    const learnings = Array.from({ length: 40 }, (_, i) => `${i}:${"x".repeat(100)}`);
+    const rendered = renderMemory(learnings);
+    expect(rendered.length).toBeLessThanOrEqual(MEMORY_CHAR_BUDGET);
+    for (const line of rendered.split("\n")) {
+      expect(learnings).toContain(line.slice(2));
+    }
+    // Newest first, so the freshest learning always survives the budget.
+    expect(rendered.startsWith("- 0:")).toBe(true);
   });
 });
 
@@ -388,5 +493,112 @@ describe("normalizeTaskOutput", () => {
       /no body or artifacts/
     );
     expect(() => normalizeTaskOutput({ body: 12345 })).toThrow(/no body or artifacts/);
+  });
+});
+
+describe("memory injection never mutilates a learning", () => {
+  const LEARNINGS = [
+    "Pricing is per-seat, not usage-based",
+    "Onboarding must import the shop's existing spreadsheet; chains are not the wedge",
+    "The team decided against a free tier after churn modelling",
+    "Integrations were deferred to post-launch, not cancelled",
+    "The buyer is the owner-operator, not the head baker",
+  ];
+
+  /** Every bullet the prompt carries must be a whole stored learning. */
+  function assertWholeBullets(user: string) {
+    const at = user.indexOf(MEMORY_HEADING);
+    if (at === -1) return; // dropping the block entirely is a valid outcome
+    const block = user.slice(at + MEMORY_HEADING.length).trim();
+    for (const line of block.split("\n")) {
+      if (!line.trim()) continue;
+      expect(line.startsWith("- ")).toBe(true);
+      // The bullet must match a stored learning exactly — not a prefix of one.
+      expect(LEARNINGS).toContain(line.slice(2));
+    }
+  }
+
+  // The band both review lenses reproduced: a task WITH dependencies, where the
+  // head plus the live handoffs leave a memory budget smaller than the rendered
+  // block. A byte slice there cuts the last bullet mid-sentence and can drop a
+  // trailing negation, inverting the claim it asserts as company fact.
+  it("drops whole bullets, never bytes, across the full dependency space", () => {
+    const agent = getAgent("chief-of-staff")!;
+    const memory = renderMemory(LEARNINGS);
+    let sawTrimmedBlock = false;
+
+    for (const deps of [0, 1, 2, 3, 4, 5, 6, 7]) {
+      for (const handoffLen of [100, 300, 600, 900, 1100, 1200]) {
+        for (const companyLen of [200, 800, 1400, 2000]) {
+          const messages = buildTaskMessages(agent, {
+            goal: "Get the first ten paying customers",
+            company: "c".repeat(companyLen),
+            brief: "b".repeat(518),
+            upstream: Array.from({ length: deps }, (_, i) => ({
+              agent: `Agent ${i}`,
+              title: `Task ${i}`,
+              handoff: "h".repeat(handoffLen),
+            })),
+            memory,
+          });
+          const user = messages[1].content;
+          expect(user.length).toBeLessThanOrEqual(CONTEXT_CHAR_BUDGET);
+          assertWholeBullets(user);
+          if (user.includes(MEMORY_HEADING) && !user.includes(memory)) {
+            sawTrimmedBlock = true;
+          }
+        }
+      }
+    }
+
+    // Guard the guard: if no configuration ever trimmed the block, this test
+    // would pass vacuously and stop protecting anything.
+    expect(sawTrimmedBlock).toBe(true);
+  });
+
+  it("omits the block rather than emitting a partial bullet, at every budget", () => {
+    // Sweep the leftover budget continuously by growing one handoff one char at
+    // a time. A single oversized learning either appears whole or not at all —
+    // there is no width at which half of it reaches the model.
+    const agent = getAgent("chief-of-staff")!;
+    const learning = `The buyer is the owner-operator, ${"x".repeat(600)}, not the head baker`;
+    const memory = renderMemory([learning]);
+    let sawWhole = false;
+    let sawAbsent = false;
+
+    for (const companyLen of [100, 700, 1400, 2000]) {
+      for (let handoffLen = 0; handoffLen <= 1200; handoffLen += 13) {
+        const user = buildTaskMessages(agent, {
+          goal: "Get the first ten paying customers",
+          company: "c".repeat(companyLen),
+          brief: "b".repeat(600),
+          // A 4-dependency synthesis task — the shape planMessages explicitly
+          // tells the planner to produce as the final step of a mission.
+          upstream: Array.from({ length: 4 }, (_, i) => ({
+            agent: `Agent ${i}`,
+            title: `T${i}`,
+            handoff: "h".repeat(handoffLen),
+          })),
+          memory,
+        })[1].content;
+
+        if (user.includes(MEMORY_HEADING)) {
+          expect(user).toContain(`- ${learning}`); // whole or nothing
+          sawWhole = true;
+        } else {
+          expect(user).not.toContain("xxx");
+          sawAbsent = true;
+        }
+        expect(user).toContain("YOUR TASK");
+      }
+    }
+
+    // Both outcomes must actually occur, or the sweep proves nothing.
+    expect(sawWhole).toBe(true);
+    expect(sawAbsent).toBe(true);
+  });
+
+  it("keeps memory inside its own budget when nothing else competes", () => {
+    expect(renderMemory(LEARNINGS).length).toBeLessThanOrEqual(MEMORY_CHAR_BUDGET);
   });
 });

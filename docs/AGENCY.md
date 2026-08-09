@@ -76,9 +76,9 @@ them in one manifest.
 `codeCapable: true` marks the eight engineering roles whose work could be handed to a dev box
 (`docs/PROVISIONING.md`). It is a **marker only today** — no code reads it yet.
 
-## Execution: plan → tick → runTask
+## Execution: plan → tick → runTask → distill
 
-Three Convex actions chained through the scheduler, so a mission is durable and has no
+Four Convex actions chained through the scheduler, so a mission is durable and has no
 single-function timeout ceiling (same "no EC2" reasoning as `docs/COMPANY-STUDIO.md`):
 
 - **`planMission`** — one model call, always at the `premium` tier of the chosen strategy
@@ -88,6 +88,8 @@ single-function timeout ceiling (same "no EC2" reasoning as `docs/COMPANY-STUDIO
   claimed.
 - **`runTask`** — one specialist, one task: build prompt → walk the model chain → normalize →
   `completeTask` (or `failTask`) → tick the mission again.
+- **`distillMemory`** — after the mission settles `done`, one model call that writes what the
+  team learned into company memory (below). Off the critical path by construction.
 
 **Parallel waves fall out of that loop.** `claimReadyTasks` is a single transactional
 mutation: it claims every queued task whose dependencies are all `done`, up to
@@ -121,6 +123,70 @@ The engine trusts nothing the planner returns. `validatePlan` (pure, unit-testab
 Edges pointing only at lower indexes make a cycle impossible by construction, so wave
 scheduling always terminates. `savePlan` re-filters the same predicate as defence in depth —
 a forward edge that slipped through would strand the mission forever.
+
+## Company memory: missions compound
+
+Every mission used to start cold. Now a finished mission leaves something behind, so the
+tenth mission on a company knows what the first nine settled (design borrowed from
+**hermes-agent**, MIT — memory that persists across runs).
+
+**When it runs.** Exactly one trigger: `missions.claimReadyTasks`, inside the same
+transactional settle that marks the mission `done`, and only when at least one task
+delivered. That patch takes the mission out of `running`, so however many ticks race, the
+distiller is scheduled once. The stale-mission watchdog deliberately does **not** trigger it —
+a mission that stalled for 15 minutes has the least trustworthy handoffs in the system, and
+permanent memory is the last place to put them.
+
+**What gets distilled.** `missions.missionOutcome` returns the goal, the company brief, and
+the handoffs of the tasks that actually completed, in index order (null if nobody left one).
+`missionEngine.distillMemory` makes **one** model call on that — the `worker` tier of the
+mission's own strategy, so a `free` mission still cannot bill — through the same fallback
+chain, JSON nudge, and breaker reporting as `runTask`, capped at 700 tokens. Summarizing
+handoffs the specialists already wrote is the cheapest work in the mission and must never
+outspend it.
+
+The model returns `{"learnings": ["…"]}`; `validateLearnings` trims, collapses whitespace (an
+embedded newline would forge a second bullet downstream), dedupes case-insensitively, drops
+anything under 12 characters, and keeps at most **5 learnings × 280 chars**. It throws when
+nothing survives, which advances the model chain instead of storing junk — the same contract
+as `normalizeTaskOutput`.
+
+**Where it lives.** One row per learning in `companyMemory`
+(`companyId`, `text`, `sourceMissionId`, `createdAt`, `updatedAt`; indexed `by_company`).
+`rememberLearnings` skips a text the company already stored — overlapping missions re-derive
+the same conclusion constantly, and storing it twice would spend the cap twice — then deletes
+everything past **24 rows** on a newest-first scan. The cap is enforced on write, not on read,
+because memory is injected into every future prompt: unbounded rows would be unbounded cost,
+not just an unbounded table.
+
+**How it is injected — and budgeted.** `planContext` and `taskContext` both render the newest
+24 rows through `renderMemory` into a `WHAT THIS COMPANY HAS ALREADY LEARNED` block, bounded
+by `MEMORY_CHAR_BUDGET` (1200 of the 6000-char prompt). Whole bullets only: half a learning
+reads as a different claim, and a clipped "pricing is per-seat, not usage-based" inverts its
+own meaning.
+
+Memory is spent **last**. In `buildTaskMessages` the head (goal, company, and the agent's own
+brief) is written first and untouched, then this mission's live teammate handoffs, and memory
+gets only `remaining - upstreamBlock.length`. A wide DAG therefore drops the memory block
+entirely rather than shortening a brief. `planMessages` follows the same rule with the
+goal/company head. Past learnings are a nice-to-have; the thing the agent is accountable for
+is not.
+
+**Trust rules bind hardest here.** Anything the distiller emits is laundered into an unbounded
+number of later prompts as established fact, so on top of `TRUST_RULES` its prompt requires
+every learning to be grounded *only* in the handoffs shown, forbids any number, metric, price,
+date, or count that is not already in them, and forbids padding when the deliverables support
+fewer than two.
+
+**Best-effort, always.** The mission is already settled before `distillMemory` runs and the
+action writes nothing to it. An exhausted chain, a rate-limited endpoint, or unparseable JSON
+just means this company learns nothing from this mission. A missed learning is cheap;
+reopening a completed mission is not.
+
+**The owner can forget.** `missions.listMemory` (owner-only, `[]` for anyone else) backs a
+collapsible *What the team has learned* list in the mission panel, and `missions.forgetMemory`
+(owner-only, `not_found` for missing-or-not-yours) deletes one row. A wrong learning compounds
+into every future plan and every future brief, so removing it by hand has to be one click.
 
 ## Free-inference routing
 
@@ -196,13 +262,17 @@ live in Convex env only, never in the repo or client code.
 | Missions per user per day | 8 | sliding-window `rateLimits` |
 | Missions per day, global | 60 | sliding-window `rateLimits` |
 | Models tried per task | `MAX_CHAIN` = 4 | `lib/router.ts` |
-| Tokens per call | 3000 task / 2000 plan, 90s timeout | `missionEngine.ts` |
+| Tokens per call | 3000 task / 2000 plan / 700 distill, 90s timeout | `missionEngine.ts` |
 | Prompt context | 6000 chars, handoffs only | `buildTaskMessages` |
+| Learnings per mission | 5 max, 280 chars each | `validateLearnings` |
+| Learnings stored per company | `MAX_COMPANY_MEMORY` = 24, oldest evicted | `missions.rememberLearnings` |
+| Memory per prompt | `MEMORY_CHAR_BUDGET` = 1200, spent last | `lib/roster.ts` |
 | Stale mission watchdog | 15 min without progress | `missions.failStaleMissions`, cron every 5 min |
 | Eligible companies | `status === "live"` only | `missions.startMission` |
 
-Missions are owner-only end to end: `startMission`, `cancel`, `listForCompany`, and
-`missionBoard` all check the Clerk subject against `company.ownerId` / `mission.ownerId`.
+Missions are owner-only end to end: `startMission`, `cancel`, `listForCompany`,
+`missionBoard`, `listMemory`, and `forgetMemory` all check the Clerk subject against
+`company.ownerId` / `mission.ownerId`.
 
 The watchdog exists because a crashed action would otherwise leave a mission `running`
 forever, holding one of the company's two slots. It closes anything with no progress for 15
@@ -234,9 +304,12 @@ The design borrows deliberately from open-source work; what we took and what we 
   breaker with exponential backoff. Adopted with two changes: breaker state is persisted in
   Convex (actions are short-lived), and the caller owns the retry loop so the router stays
   pure. `OMNIROUTE_BASE_URL` lets you put the real gateway in front of us.
-- **hermes-agent** — persistent skills and memory across runs. **Not built.** Every mission
-  starts cold; nothing carries between missions except the artifacts stored on task rows and
-  the `modelHealth` breaker state. Stated as a future direction only.
+- **hermes-agent** (MIT) — persistent memory and skills across runs. **Memory adopted**: a
+  settled mission distills 2–5 durable learnings into a capped `companyMemory` list that is
+  injected into every later plan and brief (above). Two changes: the distillation is one
+  best-effort model call scheduled off the settle rather than an always-on scratchpad, and the
+  owner can delete any row. **Skills not adopted** — nothing an agent learns becomes
+  executable; memory is text a future prompt reads, and that is all.
 - **orca** — parallel git worktrees, one agent per worktree. **Not in the mission engine.**
   It is the direction the dev-box flow points (`docs/PROVISIONING.md`), where a real box
   works on a branch and opens a PR.
@@ -248,8 +321,9 @@ The design borrows deliberately from open-source work; what we took and what we 
 - **No execution outside the app.** The mission engine only calls a model API and writes to
   Convex. The one path from a draft to a real change in a repo is the existing dev-box flow
   (`docs/PROVISIONING.md`) — separately feature-flagged, PR-only, never auto-merged.
-- **No cross-mission memory.** No shared scratchpad, no learned skills, no agent-to-agent
-  chat outside the handoff edges in the plan.
+- **No shared scratchpad and no learned skills.** Cross-mission memory is exactly one capped,
+  owner-editable list of distilled text per company — never executable, never written mid-
+  mission. There is still no agent-to-agent chat outside the handoff edges in the plan.
 - **No recurring missions.** The only Agency cron is the stale-mission watchdog; missions are
   started by their owner.
 - **No task retries beyond the model chain.** A task gets one pass through up to 4 models;
