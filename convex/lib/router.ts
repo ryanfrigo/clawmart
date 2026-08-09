@@ -23,6 +23,7 @@
  */
 
 import type { ChatMessage, Tier } from "./roster";
+import { WORKER_MODEL as WORKER, PREMIUM_MODEL as PREMIUM } from "./agents";
 
 export const STRATEGIES = ["free", "balanced", "quality"] as const;
 export type Strategy = (typeof STRATEGIES)[number];
@@ -33,24 +34,35 @@ export const STRATEGY_LABELS: Record<Strategy, string> = {
   quality: "Quality — premium models for the work that compounds",
 };
 
-// Paid models, matching the founding-team pipeline (convex/lib/agents.ts).
-export const WORKER_MODEL = "google/gemini-2.5-flash";
-export const PREMIUM_MODEL = "anthropic/claude-sonnet-4.6";
+// Paid models are shared with the founding-team pipeline rather than restated,
+// so the two surfaces can never drift onto different models. Both ids verified
+// live on 2026-08-09. Re-exported because the chain logic and its tests both
+// reason in terms of them.
+export { WORKER_MODEL, PREMIUM_MODEL } from "./agents";
 
 /**
  * Zero-cost OpenRouter models, best-first.
  *
- * Free model ids churn — an id that 404s simply fails its attempt, trips its
- * breaker, and the chain moves on, so a stale entry degrades instead of
- * breaking. Override without a deploy via CLAWMART_FREE_MODELS (comma-list).
+ * VERIFIED against GET https://openrouter.ai/api/v1/models on 2026-08-09 — of
+ * 400 catalog entries only 14 are `:free`, and the set turns over fast (every
+ * id from six months earlier was already gone). Re-check before trusting this
+ * list; that churn is exactly why:
+ *   - CLAWMART_FREE_MODELS overrides it without a deploy, and
+ *   - a dead id merely fails its attempt, trips its breaker, and the chain
+ *     moves on, so a stale entry degrades instead of breaking.
+ *
+ * Ordered by expected instruction-following quality on our JSON-envelope task,
+ * with a small fast model last as the cheapest retry. Vision-only, reasoning-
+ * omni, content-safety, and code-only endpoints are deliberately excluded —
+ * they do worse at the structured-output contract every roster agent must meet.
  */
 export const DEFAULT_FREE_MODELS: readonly string[] = [
-  "deepseek/deepseek-chat-v3-0324:free",
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "google/gemini-2.0-flash-exp:free",
-  "qwen/qwen-2.5-72b-instruct:free",
-  "mistralai/mistral-small-3.1-24b-instruct:free",
-  "nousresearch/hermes-3-llama-3.1-405b:free",
+  "nvidia/nemotron-3-super-120b-a12b:free", // 262k ctx, strong general instruct
+  "openai/gpt-oss-20b:free", // 131k ctx, reliable JSON
+  "google/gemma-4-31b-it:free", // 262k ctx, instruction-tuned
+  "nvidia/nemotron-3-ultra-550b-a55b:free", // 1M ctx, highest quality, slowest
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-nano-9b-v2:free", // 128k ctx, fast last-resort
 ];
 
 export function freeModels(): string[] {
@@ -80,7 +92,7 @@ export function chooseChain(
   cooledDown: ReadonlySet<string> = new Set()
 ): string[] {
   const free = freeModels();
-  const paid = tier === "premium" ? PREMIUM_MODEL : WORKER_MODEL;
+  const paid = tier === "premium" ? PREMIUM : WORKER;
 
   let chain: string[];
   switch (strategy) {
@@ -90,7 +102,7 @@ export function chooseChain(
       break;
     case "quality":
       // Premium first; the cheap paid model is the safety net, never a free one.
-      chain = tier === "premium" ? [PREMIUM_MODEL, WORKER_MODEL] : [WORKER_MODEL, PREMIUM_MODEL];
+      chain = tier === "premium" ? [PREMIUM, WORKER] : [WORKER, PREMIUM];
       break;
     case "balanced":
     default:
