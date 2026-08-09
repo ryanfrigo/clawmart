@@ -26,6 +26,7 @@ import {
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { StatusBadge } from "@/components/studio/status-badge";
+import { MissionPanel } from "@/components/studio/mission-panel";
 import {
   BrandView,
   LandingView,
@@ -59,6 +60,17 @@ const TABS = [
 const REBUILD_ERRORS: Record<string, string> = {
   build_in_progress: "A build is already running for this company.",
   rate_limited: "We've hit today's build limit across the studio. Try again later.",
+  not_found: "This company could not be found.",
+};
+
+const BOX_ERRORS: Record<string, string> = {
+  boxes_disabled: "Dev boxes aren't enabled on this deployment.",
+  company_not_live: "Finish the build first — dev boxes are for live companies.",
+  box_already_running: "This company already has a dev box running.",
+  repo_not_allowed: "That repository isn't on the allowlist.",
+  no_repo_configured: "No repository is configured for dev boxes yet.",
+  task_too_short: "Describe the task in a bit more detail.",
+  rate_limited: "You've hit today's dev-box limit. Try again later.",
   not_found: "This company could not be found.",
 };
 
@@ -345,8 +357,13 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
   const state = useQuery(api.companies.buildState, { companyId });
   const rebuild = useMutation(api.companies.rebuild);
   const removeCompany = useMutation(api.companies.remove);
+  const provisionBox = useMutation(api.boxes.provisionDevBox);
+  const killBox = useMutation(api.boxes.killDevBox);
+  const boxes = useQuery(api.boxes.boxesForCompany, { companyId });
   const [rebuilding, setRebuilding] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [boxBusy, setBoxBusy] = useState(false);
+  const boxesEnabled = process.env.NEXT_PUBLIC_CLAWMART_BOXES === "1";
 
   async function onDelete() {
     if (
@@ -379,6 +396,36 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
       toast.error(REBUILD_ERRORS[code] ?? "Couldn't start the rebuild. Please try again.");
     } finally {
       setRebuilding(false);
+    }
+  }
+
+  async function onProvisionBox() {
+    const task = window.prompt(
+      "Describe the task for the dev box. It runs on a real cloud box and opens a pull request for you to review — nothing is merged automatically."
+    );
+    if (!task || task.trim().length < 8) return;
+    setBoxBusy(true);
+    try {
+      await provisionBox({ companyId, task: task.trim() });
+      toast.success("Dev box starting — watch the feed.");
+    } catch (err) {
+      const code = err instanceof ConvexError ? String(err.data) : "";
+      toast.error(BOX_ERRORS[code] ?? "Couldn't start the dev box. Please try again.");
+    } finally {
+      setBoxBusy(false);
+    }
+  }
+
+  async function onKillBox(boxId: string) {
+    if (!window.confirm("Terminate this dev box now?")) return;
+    setBoxBusy(true);
+    try {
+      await killBox({ boxId });
+      toast.success("Terminating dev box…");
+    } catch {
+      toast.error("Couldn't terminate the box. Use `clawmart-box kill` as a fallback.");
+    } finally {
+      setBoxBusy(false);
     }
   }
 
@@ -429,6 +476,9 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
   const { company, runs, events, assets, waitlistCount } = state;
   const isLive = company.status === "live";
   const canRebuild = company.status === "live" || company.status === "failed";
+  const activeBox = boxes?.find(
+    (b) => b.status === "provisioning" || b.status === "running"
+  );
 
   return (
     <div>
@@ -504,6 +554,31 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
               Rebuild
             </button>
           )}
+          {boxesEnabled &&
+            isLive &&
+            (activeBox ? (
+              <button
+                type="button"
+                onClick={() => onKillBox(activeBox.boxId)}
+                disabled={boxBusy}
+                title="Terminate the running dev box"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive disabled:opacity-50"
+              >
+                <Boxes className="size-3.5" />
+                Kill box
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onProvisionBox}
+                disabled={boxBusy}
+                title="Spin up a real cloud dev box. It opens a pull request for you to review — nothing is auto-merged."
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+              >
+                <Boxes className={cn("size-3.5", boxBusy && "animate-pulse")} />
+                Dev box
+              </button>
+            ))}
           <button
             type="button"
             onClick={onDelete}
@@ -529,6 +604,14 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
           isLive={isLive}
         />
       </div>
+
+      {/* The agency staffs itself from the company's plan and brand, so it only
+          appears once the founding-team build has landed. */}
+      {isLive && (
+        <div className="mt-6">
+          <MissionPanel companyId={companyId} />
+        </div>
+      )}
     </div>
   );
 }

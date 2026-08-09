@@ -115,4 +115,119 @@ export default defineSchema({
     json: v.string(),
     updatedAt: v.number(),
   }).index("by_company_kind", ["companyId", "kind"]),
+
+  // ---- Agency missions (docs/AGENCY.md) -----------------------------------
+  // A mission dispatches the agent roster (convex/lib/roster.ts) at one goal:
+  // an orchestrator plans a task DAG, then tasks execute in parallel waves.
+
+  missions: defineTable({
+    companyId: v.id("companies"),
+    ownerId: v.string(), // Clerk subject — authorizes read/cancel
+    goal: v.string(), // the user's raw instruction to the army
+    strategy: v.union(
+      v.literal("free"), // free models only — a free mission can never bill
+      v.literal("balanced"),
+      v.literal("quality")
+    ),
+    status: v.union(
+      v.literal("planning"), // orchestrator is staffing the mission
+      v.literal("running"),
+      v.literal("done"),
+      v.literal("failed"),
+      v.literal("cancelled")
+    ),
+    approach: v.optional(v.string()), // orchestrator's one-line plan rationale
+    taskCount: v.number(), // 0 until the plan lands
+    doneCount: v.number(), // settled tasks: done + failed + skipped
+    failedCount: v.number(),
+    tokensIn: v.number(),
+    tokensOut: v.number(),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_owner", ["ownerId"])
+    // Watchdog path must never table-scan.
+    .index("by_status", ["status"]),
+
+  // One row per staffed specialist. `dependsOn` holds indexes within the same
+  // mission and always points strictly backwards (validated in lib/roster.ts),
+  // so wave scheduling cannot deadlock.
+  missionTasks: defineTable({
+    missionId: v.id("missions"),
+    companyId: v.id("companies"),
+    index: v.number(), // position in the plan; dependsOn refers to these
+    agentKey: v.string(), // must resolve in ROSTER_BY_KEY
+    title: v.string(),
+    brief: v.string(),
+    dependsOn: v.array(v.number()),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("done"),
+      v.literal("failed"),
+      v.literal("skipped") // an upstream dependency failed
+    ),
+    model: v.optional(v.string()), // the model that actually served it
+    attempt: v.number(),
+    // Stringified TaskOutput envelope — agent output shapes evolve faster than
+    // Convex validators, same call as companyAssets.json.
+    outputJson: v.optional(v.string()),
+    handoff: v.optional(v.string()), // what downstream tasks read (kept small)
+    error: v.optional(v.string()),
+    tokensIn: v.optional(v.number()),
+    tokensOut: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_mission", ["missionId"])
+    .index("by_mission_status", ["missionId", "status"]),
+
+  // Per-model circuit breaker for the free-inference router (lib/router.ts).
+  // Free endpoints rate-limit constantly; this keeps a flapping model out of
+  // rotation across action invocations instead of retrying it every task.
+  modelHealth: defineTable({
+    model: v.string(),
+    failures: v.number(), // consecutive; reset to 0 on success
+    cooldownUntil: v.number(), // epoch ms; in the past = healthy
+    lastError: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index("by_model", ["model"]),
+
+  // ---- Dev boxes (docs/adr/2026-07-18-ec2-provisioning.md) -----------------
+  // One row per real EC2 worker box a user spins up for a live company. The box
+  // runs a BYOK agent that opens PRs against the user's repo — reviewed by the
+  // user, never auto-merged. Feature-flagged (CLAWMART_BOXES_ENABLED); the whole
+  // subsystem is a no-op until the AWS control-plane creds are set in Convex env.
+  devBoxes: defineTable({
+    companyId: v.id("companies"),
+    ownerId: v.string(), // Clerk subject — authorizes kill/status
+    boxId: v.string(), // public, unguessable id: "box_<hex>"; used in tags + SSM path
+    status: v.union(
+      v.literal("provisioning"),
+      v.literal("running"),
+      v.literal("terminating"),
+      v.literal("terminated"),
+      v.literal("failed")
+    ),
+    instanceId: v.optional(v.string()),
+    publicIp: v.optional(v.string()),
+    region: v.string(),
+    instanceType: v.string(),
+    repoUrl: v.string(),
+    baseBranch: v.string(),
+    // sha-256 hex of the per-box callback secret — validates the box's audit POSTs
+    // without ever storing the raw secret (raw lives only in SSM, read by the box).
+    callbackSecretHash: v.string(),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    terminatedAt: v.optional(v.number()),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_box", ["boxId"])
+    .index("by_owner", ["ownerId"]),
 });

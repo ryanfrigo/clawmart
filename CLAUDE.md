@@ -7,7 +7,7 @@ landing page at `/c/[slug]`, and a launch kit. The user watches the build happen
 real-time agent feed. Outputs are honestly labeled AI drafts — we never claim to run a
 business autonomously.
 
-Product spec + architecture: `docs/COMPANY-STUDIO.md`.
+Product spec + architecture: `docs/COMPANY-STUDIO.md`. The agent army (missions): `docs/AGENCY.md`.
 
 **North-star metric:** activated builders → weekly Stripe net revenue once the Studio
 monetizes.
@@ -19,8 +19,13 @@ monetizes.
 - Convex — source of truth **and** agent runtime: pipeline steps run as Convex actions
   chained via the scheduler (`companies`, `agentRuns`, `agentEvents`, `companyAssets`,
   `waitlist`, `rateLimits`; legacy `purchases`).
+- Agency (`docs/AGENCY.md`) — once a company is live, a mission points a 35-specialist roster
+  at one goal: an orchestrator plans a task DAG, tasks run in parallel waves on the same
+  scheduler (`missions`, `missionTasks`, `modelHealth`; `convex/lib/roster.ts` + `router.ts`).
 - LLM calls go through **OpenRouter only** — never Vercel AI Gateway. `OPENROUTER_API_KEY`
-  lives in Convex env (actions run there), never in the repo or client code.
+  lives in Convex env (actions run there), never in the repo or client code. Missions route
+  free-models-first with a per-model circuit breaker; `OMNIROUTE_BASE_URL` is an opt-in
+  self-hosted OpenAI-compatible gateway, OpenRouter stays the default.
 - Clerk auth: users sign in to create companies; `/c/[slug]` pages are public.
 - Legacy delivery: `/api/download/[token]` still serves past pack purchases and must keep
   working; the storefront itself is removed.

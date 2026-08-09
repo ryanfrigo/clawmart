@@ -1,0 +1,256 @@
+# Clawmart Agency — build contract
+
+The **agent army**: once a company is live, the user points a whole roster of specialists at
+one goal — "price this", "get the first ten customers", "spec the API" — and an orchestrator
+staffs it, breaks it into a dependency graph, and runs the specialists in parallel waves.
+
+Where the founding-team pipeline (`docs/COMPANY-STUDIO.md`) is five fixed agents in a fixed
+order, the Agency is **N specialists staffed on demand**. Same honest scope: agents produce
+drafts and specs. A human ships them.
+
+Code: `convex/lib/roster.ts` (who), `convex/lib/router.ts` (which model),
+`convex/missions.ts` (state + auth), `convex/missionEngine.ts` (the actions).
+
+## What a mission is
+
+A mission is one goal, dispatched at the roster, on one live company.
+
+1. The owner submits a goal (12–1000 chars) and a routing strategy → `missions.startMission`.
+2. The orchestrator (`missionEngine.planMission`) writes a plan: up to 8 tasks (it is told to
+   use at least 2), each staffed to a real roster key, each with a brief and backwards-only
+   dependencies.
+3. Tasks run in waves until every one is settled. The mission ends `done` (at least one
+   specialist delivered), `failed`, or `cancelled`.
+
+Mission progress is written into the **existing `agentEvents` table** keyed by `companyId`,
+so the Studio live feed shows the army working with no changes to the feed itself. Task
+deliverables live on the task row (`missionTasks.outputJson`) — a mission never rewrites the
+company's build assets.
+
+## One envelope for every agent
+
+Five bespoke JSON contracts were fine for five agents. For a roster, N agents would mean N
+contracts, N parsers, N renderers, N validators — and every new specialist would be a code
+change in the engine.
+
+So **every roster agent returns the same envelope** (`TASK_CONTRACT`):
+
+```json
+{ "summary": "...", "body": "markdown", "artifacts": [{"title": "...", "content": "..."}], "handoff": "..." }
+```
+
+The only thing that varies per specialist is *who they are* (`role`) and *what they are
+accountable for* (`delivers`). One parser (`normalizeTaskOutput`), one renderer, one
+validator. That is what lets the planner staff any goal from the whole roster without the
+engine knowing anything about the individuals.
+
+`normalizeTaskOutput` is deliberately forgiving of what weak free-tier models actually
+produce — missing summary (first real body line substitutes), artifacts as bare strings,
+missing handoff (summary substitutes). It throws only when there is no work at all: a model
+that returned nothing fails its task rather than recording an empty one.
+
+Only **handoffs** travel down the graph, never full bodies (`CONTEXT_CHAR_BUDGET` = 6000
+chars per prompt). An eight-task mission would otherwise inflate context quadratically and
+blow the free tier's budget.
+
+## The roster
+
+**35 specialists across 7 divisions** (`ROSTER` in `convex/lib/roster.ts`):
+
+| Division | Count | Examples |
+|---|---|---|
+| strategy | 5 | Chief Strategist, Market Researcher, Pricing Analyst, Risk Auditor |
+| product | 4 | Product Manager, Spec Writer, Sprint Planner, UX Researcher |
+| engineering | 8 | Backend Architect, Frontend Engineer, AI Engineer, Security Engineer |
+| design | 4 | Brand Designer, UI Designer, Content Designer, Accessibility Auditor |
+| growth | 6 | Growth Lead, SEO Specialist, Content Marketer, Lifecycle Marketer |
+| revenue | 3 | Sales Strategist, Customer Success Lead, Partnerships Lead |
+| operations | 5 | Chief of Staff, Finance Analyst, Compliance Reviewer, Technical Writer |
+
+Each entry carries `key` (stable id, referenced by plans and task rows), `name`, `division`,
+`blurb` (one line — shown to users *and* to the planner), `role`, `delivers`, and `tier`
+(`worker` | `premium`, resolved to concrete models by the router). Kept at "a team you could
+name" scale on purpose: every entry has a distinct deliverable, and the planner sees all of
+them in one manifest.
+
+`codeCapable: true` marks the eight engineering roles whose work could be handed to a dev box
+(`docs/PROVISIONING.md`). It is a **marker only today** — no code reads it yet.
+
+## Execution: plan → tick → runTask
+
+Three Convex actions chained through the scheduler, so a mission is durable and has no
+single-function timeout ceiling (same "no EC2" reasoning as `docs/COMPANY-STUDIO.md`):
+
+- **`planMission`** — one model call, always at the `premium` tier of the chosen strategy
+  (a bad DAG wastes every downstream task), validated by `validatePlan`, saved by
+  `missions.savePlan`.
+- **`tick`** — calls `missions.claimReadyTasks` and fans out `runTask` for whatever it
+  claimed.
+- **`runTask`** — one specialist, one task: build prompt → walk the model chain → normalize →
+  `completeTask` (or `failTask`) → tick the mission again.
+
+**Parallel waves fall out of that loop.** `claimReadyTasks` is a single transactional
+mutation: it claims every queued task whose dependencies are all `done`, up to
+`MAX_CONCURRENT_TASKS` (3), marks them running, and returns them. Every settling task ticks
+the mission, so a completion immediately claims whatever it unblocked. Because the claim is
+transactional, two concurrent ticks cannot double-run a task or double-finalize a mission.
+
+The same mutation settles the mission:
+
+- **Skip cascade** — a queued task whose dependency `failed` or was `skipped` can never run,
+  so it is marked `skipped` immediately instead of hanging the mission.
+- **Partial credit** — when nothing is running and nothing is claimable, the mission is
+  `done` if at least one task delivered, `failed` only if every task failed. Half a mission
+  of real deliverables is the honest outcome, not a wipe.
+
+`cancel` marks queued tasks `skipped` and the mission `cancelled`; tasks already in flight
+finish their current model call, but nothing new is claimed (`taskContext` returns null once
+the mission is no longer `running`).
+
+## Why the DAG cannot deadlock
+
+The engine trusts nothing the planner returns. `validatePlan` (pure, unit-testable):
+
+1. Drops tasks that are malformed, staffed to an unknown `agentKey`, or repeat an agent
+   already used; caps at `MAX_TASKS` (8).
+2. Remaps `dependsOn` from the model's original indexes onto the surviving indexes and
+   **drops any edge that does not point strictly backwards** (`d < i`), plus self-references
+   and duplicates.
+3. Throws if nothing usable survives.
+
+Edges pointing only at lower indexes make a cycle impossible by construction, so wave
+scheduling always terminates. `savePlan` re-filters the same predicate as defence in depth —
+a forward edge that slipped through would strand the mission forever.
+
+## Free-inference routing
+
+The founding-team pipeline makes 5 calls per company. An army makes up to 8 per mission
+across many missions, so routing prefers **free capacity** and degrades instead of failing
+when a free endpoint rate-limits (they rate-limit constantly).
+
+**Strategy → fallback chain** (`chooseChain(strategy, tier, cooledDown)`, max 4 models):
+
+| Strategy | Chain |
+|---|---|
+| `free` | free models only — a free mission can never bill |
+| `balanced` | free models first, then the tier's paid model as the completion guarantee |
+| `quality` | paid only — `anthropic/claude-sonnet-4.6` and `google/gemini-2.5-flash`, premium first for `premium`-tier agents and worker first for `worker`-tier ones. Never a free model. |
+
+Order of operations matters here, and the reverse order was a real defect caught in review:
+the chain is deduped, then **cooled-down models are filtered out, and only then** is it
+truncated to `MAX_CHAIN` (4). Truncating first hides every healthy model below the cut no
+matter how many above it are cooled — the breaker would have nothing left to route to.
+
+Truncation also must not be what removes the paid fallback. The default free list has six
+entries, so `[...free, paid]` is seven long and a plain slice drops the paid model every
+time, making `balanced` silently identical to `free` while the UI promises otherwise. When
+the paid model is healthy but falls off the end, it takes the last slot instead.
+
+The chain is never allowed to go empty: when every candidate is cooled down it still attempts
+its first choice rather than failing without a single request.
+
+**Circuit breaker** (`modelHealth` table, one row per model). A failed call increments
+`failures` and sets `cooldownUntil`; a success resets both to zero. Backoff is exponential —
+1m, 2m, 4m, … capped at 30m (`nextCooldownMs`). A 429's `Retry-After` header overrides the
+guess (`retryAfterMs`) **only when it is greater than zero** — `Retry-After: 0`, a past HTTP
+date, or a negative value would otherwise set the cooldown to "now" and disable the breaker
+for exactly the endpoint that just rate-limited us. State is persisted rather than in-process
+because Convex actions are short-lived, so a flapping model stays out of rotation across
+invocations.
+
+The default free-model list is verified against the live OpenRouter catalog, not assumed:
+of 400 catalog entries only 14 are `:free`, and the set turns over within months. A stale id
+simply fails its attempt, trips its breaker, and the chain advances — and
+`CLAWMART_FREE_MODELS` replaces the list without a deploy.
+
+Two failure classes are handled differently:
+
+- **Availability** (HTTP error, timeout) — cools the model down, then the chain advances.
+  Exception: 401/402/403 mean *our* credentials are wrong, so every model behind that key
+  fails identically and the chain stops (`isChainWorthy`).
+- **Quality** (unparseable JSON, empty envelope) — the model answered, so it is *not* cooled
+  down. The next attempt appends a JSON nudge instead.
+
+**Upstream** (`resolveUpstream`). OpenRouter is the default and the only configured provider.
+If `OMNIROUTE_BASE_URL` is set, calls go to that self-hosted OmniRoute gateway instead — it
+is OpenAI-compatible, so it is the same code path with a different base URL plus an
+`x-omniroute-combo: auto/cheap` hint. **Vercel AI Gateway is never used.** Keys
+live in Convex env only, never in the repo or client code.
+
+### Env vars (all in Convex env)
+
+| Var | Required | Purpose |
+|-----|----------|---------|
+| `OPENROUTER_API_KEY` | yes (default path) | OpenRouter key; also the fallback key for OmniRoute. |
+| `CLAWMART_FREE_MODELS` | no | Comma-separated free model ids, overriding `DEFAULT_FREE_MODELS` without a deploy. Free ids churn; a stale id simply fails, trips its breaker, and the chain moves on. |
+| `OMNIROUTE_BASE_URL` | no | Opt-in: OpenAI-compatible root (`.../v1`) of a self-hosted OmniRoute gateway. Unset = OpenRouter. |
+| `OMNIROUTE_API_KEY` | no | Key for that gateway; falls back to `OPENROUTER_API_KEY`. |
+
+## Guardrails
+
+| Limit | Value | Where |
+|---|---|---|
+| Tasks per mission | `MAX_TASKS` = 8 (min 2) | `lib/roster.ts`, re-clamped in `savePlan` |
+| Tasks in flight per mission | `MAX_CONCURRENT_TASKS` = 3 | `missions.claimReadyTasks` |
+| Active missions per company | 2 (`planning` + `running`) | `missions.startMission` |
+| Missions per user per day | 8 | sliding-window `rateLimits` |
+| Missions per day, global | 60 | sliding-window `rateLimits` |
+| Models tried per task | `MAX_CHAIN` = 4 | `lib/router.ts` |
+| Tokens per call | 3000 task / 2000 plan, 90s timeout | `missionEngine.ts` |
+| Prompt context | 6000 chars, handoffs only | `buildTaskMessages` |
+| Stale mission watchdog | 15 min without progress | `missions.failStaleMissions`, cron every 5 min |
+| Eligible companies | `status === "live"` only | `missions.startMission` |
+
+Missions are owner-only end to end: `startMission`, `cancel`, `listForCompany`, and
+`missionBoard` all check the Clerk subject against `company.ownerId` / `mission.ownerId`.
+
+The watchdog exists because a crashed action would otherwise leave a mission `running`
+forever, holding one of the company's two slots. It closes anything with no progress for 15
+minutes, keeping completed deliverables (`done` if any task finished, else `failed`), and
+queries by the `by_status` index so it never table-scans.
+
+## Trust rules apply to generated mission output
+
+`TRUST_RULES` is injected into **every** agent's system prompt and into the planner's — no
+exceptions, no per-agent opt-out. It forbids invented testimonials, customer quotes, user
+counts, revenue, ratings, press mentions, case studies, and "as seen in" logos; forbids
+guaranteed results; forbids claiming work was executed that was only described; and requires
+the agent to say plainly when it lacks information instead of inventing it.
+
+Every surface that renders mission output labels it an **AI draft**. This is the same rule
+that binds the rest of the product (CLAUDE.md) — generated copy is not an exemption.
+
+## Prior art
+
+The design borrows deliberately from open-source work; what we took and what we did not:
+
+- **agency-agents** — the roster convention: a division, a one-line blurb, an identity, and
+  concrete deliverables per specialist. Adopted directly; the model-per-agent and tool
+  wiring are not.
+- **prime-agent** — the fan-out shape (an orchestrator spawns subagents that run in
+  parallel). Adopted, but expressed with the Convex scheduler instead of a process
+  supervisor, so there is nothing to keep alive between calls.
+- **OmniRoute** — routing strategies resolving to a fallback chain, plus a per-model circuit
+  breaker with exponential backoff. Adopted with two changes: breaker state is persisted in
+  Convex (actions are short-lived), and the caller owns the retry loop so the router stays
+  pure. `OMNIROUTE_BASE_URL` lets you put the real gateway in front of us.
+- **hermes-agent** — persistent skills and memory across runs. **Not built.** Every mission
+  starts cold; nothing carries between missions except the artifacts stored on task rows and
+  the `modelHealth` breaker state. Stated as a future direction only.
+- **orca** — parallel git worktrees, one agent per worktree. **Not in the mission engine.**
+  It is the direction the dev-box flow points (`docs/PROVISIONING.md`), where a real box
+  works on a branch and opens a PR.
+
+## Non-goals
+
+- **Agents draft; humans ship.** A mission produces specs, copy, plans, and code text. It
+  does not deploy, publish, post, spend, or merge anything.
+- **No execution outside the app.** The mission engine only calls a model API and writes to
+  Convex. The one path from a draft to a real change in a repo is the existing dev-box flow
+  (`docs/PROVISIONING.md`) — separately feature-flagged, PR-only, never auto-merged.
+- **No cross-mission memory.** No shared scratchpad, no learned skills, no agent-to-agent
+  chat outside the handoff edges in the plan.
+- **No recurring missions.** The only Agency cron is the stale-mission watchdog; missions are
+  started by their owner.
+- **No task retries beyond the model chain.** A task gets one pass through up to 4 models;
+  there is no re-queue. The skip cascade and partial credit make a failed task survivable.
