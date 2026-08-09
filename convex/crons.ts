@@ -40,6 +40,16 @@ crons.interval(
   {}
 );
 
+// Agency watchdog: a crashed mission action leaves a mission stuck in
+// planning/running, which would hold one of the company's two active-mission
+// slots forever. Close anything with no progress for 15 min (docs/AGENCY.md).
+crons.interval(
+  "agency: fail stalled missions",
+  { minutes: 5 },
+  internal.missions.failStaleMissions,
+  {}
+);
+
 // Daily CEO check-in: one honest note per live company into its feed, plus a
 // morning digest email per owner (env-gated on RESEND_API_KEY).
 // 14:00 UTC ≈ 7am PT — a morning email for US founders.

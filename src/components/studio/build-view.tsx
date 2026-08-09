@@ -26,6 +26,7 @@ import {
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { StatusBadge } from "@/components/studio/status-badge";
+import { MissionPanel } from "@/components/studio/mission-panel";
 import {
   BrandView,
   LandingView,
@@ -603,6 +604,14 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
           isLive={isLive}
         />
       </div>
+
+      {/* The agency staffs itself from the company's plan and brand, so it only
+          appears once the founding-team build has landed. */}
+      {isLive && (
+        <div className="mt-6">
+          <MissionPanel companyId={companyId} />
+        </div>
+      )}
     </div>
   );
 }

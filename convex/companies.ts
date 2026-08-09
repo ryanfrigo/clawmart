@@ -404,6 +404,25 @@ export const remove = mutation({
         .collect();
       for (const row of signups) await ctx.db.delete(row._id);
     }
+    // Missions and their tasks (docs/AGENCY.md). Without this the goal text and
+    // every generated deliverable outlive the company that "permanently"
+    // removed them, and an in-flight mission never settles: planContext and
+    // taskContext both return null once the company is gone, so the engine
+    // bails out without marking anything failed — leaving failStaleMissions to
+    // insert fresh agentEvents rows pointing at a companyId that no longer
+    // exists. Deleting the missions here means the watchdog never sees them.
+    const missions = await ctx.db
+      .query("missions")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    for (const mission of missions) {
+      const tasks = await ctx.db
+        .query("missionTasks")
+        .withIndex("by_mission", (q) => q.eq("missionId", mission._id))
+        .collect();
+      for (const task of tasks) await ctx.db.delete(task._id);
+      await ctx.db.delete(mission._id);
+    }
     await ctx.db.delete(args.companyId);
     return null;
   },

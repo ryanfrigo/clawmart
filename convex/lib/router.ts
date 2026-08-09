@@ -111,10 +111,24 @@ export function chooseChain(
       break;
   }
 
-  chain = Array.from(new Set(chain)).slice(0, MAX_CHAIN);
+  chain = Array.from(new Set(chain));
+
+  // Filter BEFORE truncating. The other order silently defeats the breaker:
+  // with 6 free defaults a balanced chain is 7 long, so slicing to MAX_CHAIN
+  // first drops the paid model every time — and any healthy model below the cut
+  // is unreachable no matter how many models above it are cooled down.
   const healthy = chain.filter((m) => !cooledDown.has(m));
   // Never return an empty chain: attempting a cooled model beats not trying.
-  return healthy.length > 0 ? healthy : chain.slice(0, 1);
+  if (healthy.length === 0) return chain.slice(0, 1);
+
+  const result = healthy.slice(0, MAX_CHAIN);
+  // "balanced" promises a paid fallback, so truncation must not be what removes
+  // it. If the paid model is healthy but fell off the end, it takes the last
+  // slot — the guarantee of completion is worth more than one extra free try.
+  if (strategy === "balanced" && !result.includes(paid) && healthy.includes(paid)) {
+    return [...result.slice(0, MAX_CHAIN - 1), paid];
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------

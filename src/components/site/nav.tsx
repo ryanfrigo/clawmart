@@ -21,6 +21,12 @@ export function SiteNav() {
             How it works
           </Link>
           <Link
+            href="/agency"
+            className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Agency
+          </Link>
+          <Link
             href="/about"
             className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
           >

@@ -629,8 +629,12 @@ export const reportModelResult = internalMutation({
     const failures = (existing?.failures ?? 0) + 1;
     // The failure count lives here, so the backoff is computed here. A caller
     // may override it — a 429's Retry-After is more authoritative than our
-    // exponential guess.
-    const cooldownUntil = now + (args.cooldownMs ?? nextCooldownMs(failures));
+    // exponential guess. A hint of 0 is NOT an override: `Retry-After: 0`, a
+    // past HTTP date, or a negative value would otherwise set cooldownUntil to
+    // now and disable the breaker for exactly the endpoint that just rate-
+    // limited us (`??` does not fall through on 0).
+    const hint = args.cooldownMs && args.cooldownMs > 0 ? args.cooldownMs : undefined;
+    const cooldownUntil = now + (hint ?? nextCooldownMs(failures));
     if (existing) {
       await ctx.db.patch(existing._id, {
         failures,

@@ -421,8 +421,13 @@ export const ROSTER: readonly RosterAgent[] = [
   },
 ] as const;
 
+// Null-prototype: a planner-supplied agentKey like "constructor" or "__proto__"
+// must resolve to nothing, not to something inherited from Object.prototype.
 export const ROSTER_BY_KEY: Readonly<Record<string, RosterAgent>> = Object.freeze(
-  Object.fromEntries(ROSTER.map((a) => [a.key, a]))
+  Object.assign(
+    Object.create(null) as Record<string, RosterAgent>,
+    Object.fromEntries(ROSTER.map((a) => [a.key, a]))
+  )
 );
 
 export function getAgent(key: string): RosterAgent | undefined {
@@ -465,15 +470,21 @@ export function buildTaskMessages(agent: RosterAgent, ctx: TaskContext): ChatMes
     .map((u) => `- ${u.agent} ("${u.title}"): ${u.handoff}`)
     .join("\n");
 
-  const user = [
-    `MISSION GOAL\n${ctx.goal}`,
-    `COMPANY\n${ctx.company}`,
-    upstream ? `WHAT YOUR TEAMMATES ALREADY DELIVERED\n${upstream}` : "",
-    `YOUR TASK\n${ctx.brief}`,
-  ]
-    .filter(Boolean)
+  // The agent's OWN brief must survive the budget, so it goes in the head with
+  // the goal and company; only teammate handoffs are trimmed. Appending the
+  // brief last and clamping the whole string would delete the one thing the
+  // agent is accountable for as soon as a mission fanned out far enough.
+  const head = [`MISSION GOAL\n${ctx.goal}`, `COMPANY\n${ctx.company}`, `YOUR TASK\n${ctx.brief}`]
     .join("\n\n")
     .slice(0, CONTEXT_CHAR_BUDGET);
+
+  const remaining = CONTEXT_CHAR_BUDGET - head.length;
+  const upstreamBlock =
+    upstream && remaining > 200
+      ? `\n\nWHAT YOUR TEAMMATES ALREADY DELIVERED\n${upstream}`.slice(0, remaining)
+      : "";
+
+  const user = head + upstreamBlock;
 
   return [
     {
