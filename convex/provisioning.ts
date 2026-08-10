@@ -65,9 +65,11 @@ CFG="\$(fetch config)"
 IMG="\$(echo "\$CFG" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("agentImage",""))')"
 [ -z "\$IMG" ] && shutdown -h now
 docker pull "\$IMG" >/dev/null 2>&1
-docker run --rm --name clawmart-agent --user 10001:10001 \
-  --read-only --tmpfs /work:rw,size=2g --tmpfs /tmp:rw,size=512m \
+docker run --rm --name clawmart-agent --user 10001:10001 --read-only \
+  --tmpfs /work:rw,exec,size=2g,uid=10001,gid=10001,mode=0700 \
+  --tmpfs /tmp:rw,size=512m \
   --memory 1500m --cpus 1.8 --security-opt no-new-privileges \
+  --cap-drop ALL --pids-limit 512 \
   -e BOX_ID="\$BOX_ID" -e CLAWMART_CONFIG="\$CFG" \
   -e LLM_API_KEY="\$(fetch llm-api-key)" \
   -e GITHUB_TOKEN="\$(fetch github-token)" \
@@ -83,6 +85,10 @@ export const provisionBox = internalAction({
     repoUrl: v.string(),
     baseBranch: v.string(),
     task: v.string(),
+    // Set by the mission bridge to the staffed specialist (boxes.claimBoxForTask,
+    // already validated codeCapable). Absent on a hand-started box, which keeps
+    // the globally configured default.
+    agentKey: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<null> => {
     const fail = (msg: string) =>
@@ -117,7 +123,22 @@ export const provisionBox = internalAction({
       task: args.task,
       model: process.env.CLAWMART_BOX_MODEL ?? "anthropic/claude-sonnet-4.6",
       budgetUsd: Number(process.env.CLAWMART_BOX_BUDGET_USD ?? 2),
-      maxIterations: Number(process.env.CLAWMART_BOX_MAX_ITERS ?? 6),
+      // A verifying harness spends turns reading and re-running the gate, so 6
+      // was a hard stop mid-task; the dollar and wall-clock caps are the real
+      // limits (infra/agent/harness/budget.py).
+      maxIterations: Number(process.env.CLAWMART_BOX_MAX_ITERS ?? 30),
+      // The harness needs the same deadline the box self-terminates on, so it
+      // can stop and still open the PR instead of being killed mid-run.
+      maxRuntimeMin,
+      // Roster key (convex/lib/roster.ts): the specialist this box runs as. The
+      // one the Agency staffed, falling back to the globally configured default.
+      // Validated against the eight codeCapable engineering agents inside the
+      // harness; unknown ⇒ ignored.
+      agentKey: args.agentKey ?? process.env.CLAWMART_BOX_AGENT_KEY,
+      // Reserved: read-only notes the control plane may inject later. There is
+      // no writer in v2 — cross-run memory is a persistence-of-injection
+      // surface and is deliberately not built yet.
+      repoNotes: [],
       agentImage,
       convexSiteUrl: process.env.CONVEX_SITE_URL ?? "",
     };

@@ -183,6 +183,23 @@ export const runTask = internalAction({
       return null;
     }
 
+    // Execution branch: an engineering specialist on a mission that opted in
+    // does the work on a real dev box instead of writing about it
+    // (docs/AGENCY.md, docs/PROVISIONING.md). claimBoxForTask owns every
+    // guardrail and REFUSES rather than throwing — including, first of all, when
+    // CLAWMART_BOXES_ENABLED is unset, which is why a mission with no opt-in
+    // never even reaches this call. On any refusal we fall through to the model
+    // path below, so losing the box costs the mission a draft, not the task.
+    if (agent.codeCapable && context.execute) {
+      const claim = await ctx.runMutation(internal.boxes.claimBoxForTask, {
+        taskId: args.taskId,
+      });
+      // The box now owns this task: it settles through boxes.ts (its terminal
+      // event, its failure, its termination, or its deadline), each of which
+      // ticks the mission. Nothing here may settle it or the two would race.
+      if (claim.ok) return null;
+    }
+
     const messages = buildTaskMessages(agent, {
       goal: context.goal,
       company: context.company,

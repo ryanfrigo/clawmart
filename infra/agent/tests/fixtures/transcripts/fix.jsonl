@@ -1,0 +1,6 @@
+{"call": {"thought": "see what is here", "tool": "list_files", "args": {}}}
+{"call": {"thought": "read the module", "tool": "read_file", "args": {"path": "src/math.js"}}}
+{"call": {"thought": "add multiply", "tool": "write_file", "args": {"path": "src/math.js", "content": "'use strict';\n\nfunction add(a, b) {\n  return a + b;\n}\n\nfunction subtract(a, b) {\n  return a - b;\n}\n\nfunction multiply(a, b) {\n  return a * b;\n}\n\nmodule.exports = { add, subtract, multiply };\n"}}}
+{"call": {"thought": "cover it", "tool": "edit_file", "args": {"path": "tests/run.js", "find": "console.log('fixture tests passed');", "replace": "assert.strictEqual(math.multiply(3, 4), 12, 'multiply(3,4) should be 12');\n\nconsole.log('fixture tests passed');"}}}
+{"call": {"thought": "check", "tool": "run_verify", "args": {"step": "test"}}}
+{"call": {"thought": "done", "tool": "finish", "args": {"summary": "added multiply and a test for it", "pr_title": "Add multiply() to src/math.js", "pr_body": "Adds `multiply(a, b)` and an assertion covering it in `tests/run.js`."}}}

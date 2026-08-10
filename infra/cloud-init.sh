@@ -43,12 +43,24 @@ docker pull "$AGENT_IMAGE" >/dev/null 2>&1
 
 # The agent runs unprivileged, no host mounts, its own network namespace.
 # It clones the repo, works ONLY on a clawmart/* branch, and opens a PR.
+#
+# The /work tmpfs options are load-bearing and were verified locally:
+#   exec           docker's tmpfs default is noexec, and the verification gate
+#                  runs the target repo's own toolchain out of node_modules/.bin.
+#                  Without it every run degrades to "no gate available", which is
+#                  the one thing the harness exists to prevent. /tmp stays noexec.
+#   uid/gid/mode   docker inherits the image directory's mode for a tmpfs mount,
+#                  so /work came up root-owned 0755 and the unprivileged agent
+#                  could not create /work/repo at all. 0700 owned by the agent
+#                  uid is both correct and tighter than the 1777 default.
 docker run --rm \
   --name clawmart-agent \
   --user 10001:10001 \
-  --read-only --tmpfs /work:rw,size=2g --tmpfs /tmp:rw,size=512m \
+  --read-only \
+  --tmpfs /work:rw,exec,size=2g,uid=10001,gid=10001,mode=0700 \
+  --tmpfs /tmp:rw,size=512m \
   --memory 1500m --cpus 1.8 \
-  --security-opt no-new-privileges \
+  --security-opt no-new-privileges --cap-drop ALL --pids-limit 512 \
   -e BOX_ID="$BOX_ID" \
   -e CLAWMART_CONFIG="$CONFIG_JSON" \
   -e LLM_API_KEY="$LLM_API_KEY" \

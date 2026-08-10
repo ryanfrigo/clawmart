@@ -9,13 +9,15 @@ order, the Agency is **N specialists staffed on demand**. Same honest scope: age
 drafts and specs. A human ships them.
 
 Code: `convex/lib/roster.ts` (who), `convex/lib/router.ts` (which model),
-`convex/missions.ts` (state + auth), `convex/missionEngine.ts` (the actions).
+`convex/missions.ts` (state + auth), `convex/missionEngine.ts` (the actions),
+`convex/boxes.ts` + `convex/lib/boxevents.ts` (the dev-box bridge, off by default).
 
 ## What a mission is
 
 A mission is one goal, dispatched at the roster, on one live company.
 
-1. The owner submits a goal (12–1000 chars) and a routing strategy → `missions.startMission`.
+1. The owner submits a goal (12–1000 chars), a routing strategy, and optionally `execute`
+   (may one engineering task run on a real dev box?) → `missions.startMission`.
 2. The orchestrator (`missionEngine.planMission`) writes a plan: up to 8 tasks (it is told to
    use at least 2), each staffed to a real roster key, each with a brief and backwards-only
    dependencies.
@@ -73,8 +75,14 @@ Each entry carries `key` (stable id, referenced by plans and task rows), `name`,
 name" scale on purpose: every entry has a distinct deliverable, and the planner sees all of
 them in one manifest.
 
-`codeCapable: true` marks the eight engineering roles whose work could be handed to a dev box
-(`docs/PROVISIONING.md`). It is a **marker only today** — no code reads it yet.
+`codeCapable: true` marks the eight engineering roles whose work can be handed to a dev box
+(`docs/PROVISIONING.md`). It has two readers. The box harness: the box config names a roster
+key — the staffed specialist on a mission dispatch, `CLAWMART_BOX_AGENT_KEY` otherwise — and
+`infra/agent/harness/__main__.py` accepts it only if it is one of those eight, using it for
+the agent's system-prompt role line (the PR title is the model's own). An unknown key is ignored
+and the run falls back to a generic engineer — the control plane never lets the model choose
+its own fan-out. And the mission bridge below: only a task staffed to one of those eight can
+be dispatched to a box, whoever the planner picked.
 
 ## Execution: plan → tick → runTask → distill
 
@@ -87,7 +95,9 @@ single-function timeout ceiling (same "no EC2" reasoning as `docs/COMPANY-STUDIO
 - **`tick`** — calls `missions.claimReadyTasks` and fans out `runTask` for whatever it
   claimed.
 - **`runTask`** — one specialist, one task: build prompt → walk the model chain → normalize →
-  `completeTask` (or `failTask`) → tick the mission again.
+  `completeTask` (or `failTask`) → tick the mission again. One branch off this path: a
+  `codeCapable` specialist on a mission that opted into execution is offered to a dev box
+  first (below), and the box settles the task instead.
 - **`distillMemory`** — after the mission settles `done`, one model call that writes what the
   team learned into company memory (below). Off the critical path by construction.
 
@@ -252,6 +262,80 @@ live in Convex env only, never in the repo or client code.
 | `OMNIROUTE_BASE_URL` | no | Opt-in: OpenAI-compatible root (`.../v1`) of a self-hosted OmniRoute gateway. Unset = OpenRouter. |
 | `OMNIROUTE_API_KEY` | no | Key for that gateway; falls back to `OPENROUTER_API_KEY`. |
 
+## Missions that execute: the dev-box bridge
+
+By default every specialist writes about the work. A mission started with `execute: true`
+may hand **one** engineering task to a real dev box (`docs/PROVISIONING.md`), which works on
+a branch in an allowlisted repo and opens a pull request the owner reviews.
+
+The whole path stays behind `CLAWMART_BOXES_ENABLED`, which is **off in production**. With
+the flag unset `boxes.claimBoxForTask` returns on its first line, before a single read or
+write, and a mission runs exactly as it always has.
+
+**Dispatch.** `missionEngine.runTask` offers a task to a box when its agent is `codeCapable`
+*and* the mission opted in; `boxes.claimBoxForTask` then decides. Every refusal is a return
+value, never a throw, and the engine falls through to the ordinary model path — so a mission
+that cannot get a box loses a *draft*, never a task. It refuses when: the flag is off, the
+mission did not opt in, the agent is not one of the eight, the mission already used its box,
+the company is not live or already has a live box, no repo is allowlisted, or a daily box
+window is full. The box is sent the task title, the brief, the mission goal, and the staffed
+specialist's roster key, so the harness runs as that specialist rather than as the globally
+configured default. It is never sent a repo name or a branch — the allowlist and server config
+pick those, so no plan and no prompt injection can steer a box at a different repository.
+
+A daily box window is *checked* before it is charged: on this path a refusal is a return value,
+not a throw, so an increment made before a later refusal would commit for a box nobody got and
+quietly drain the shared global budget.
+
+**One box per mission, not per task.** Booting EC2 costs minutes and money, so a mission gets
+one, enforced by a `devBoxes.by_mission` row that is never deleted. A second `codeCapable`
+task in the same mission drafts text exactly as it does today.
+
+> The intent was for tasks to *share* one box. The current box cannot do that: it runs one
+> task from its SSM config, opens its PR, and `shutdown -h now`s, and it has no inbound
+> channel — it only POSTs outward. Task reuse needs a box-side work loop, which is a change to
+> `infra/agent/` and unverifiable without AWS. What is built is the honest half: one box per
+> mission, for one task.
+
+**Completion.** The harness has no structured callback — it reports through `/box/event`
+(`{kind, text}`) and nothing else — so the bridge recognises its two terminal lines. The
+matching rules live in `convex/lib/boxevents.ts` and are unit-tested, because that same
+stream carries **untrusted repository bytes**: tool results and gate output are posted as
+`output` events, and a repo can contain any line it likes. Hence a marker must be the *whole*
+event text (repo content arrives inside multi-line blocks, never as an entire event), and a
+pull-request link is accepted only under the repo the box was allowlisted to touch — the
+worst a forged line achieves is pointing at another PR in that same repo.
+
+A settled box task gets the same `TASK_CONTRACT` envelope every other specialist returns, so
+the DAG, the mission board, and the memory distiller need no special case. **The envelope is
+generated by us**, not by the box: the only box-supplied value that survives into it is the
+validated PR URL. Nothing the box says ever becomes prompt text for another agent — box
+output reaches the live feed, which is display-only, and stops there. A box that opened no
+pull request **fails** its task, so the skip cascade settles anything downstream instead of
+letting a dependent specialist build on work that does not exist.
+
+**A box failure settles the task; it never hangs the mission.** Four paths settle it directly
+and the first one to find the task still `running` wins:
+
+| What happened | Settles via |
+|---|---|
+| Harness finished (`status: done`) | `boxes.recordBoxEvent` → PR captured, or failed if none |
+| Provisioning failed (no creds, no image, AWS error) | `boxes.markFailed` |
+| Box terminated or killed by the owner | `boxes.markTerminated` |
+| Box never reported back | `boxes.expireMissionBox`, scheduled at dispatch |
+
+That last one is the guarantee: it is scheduled the moment the box is claimed, for the box's
+own hard shutdown deadline plus five minutes, so it does not depend on anything the box says.
+The stale-mission watchdog stays *behind* all four as a catch-all — and it now **skips** a
+mission whose box is still inside that deadline. A box goes silent for long stretches by
+design (its verification gate alone allows 15 minutes for install and 10 per step), so
+closing the mission at 15 minutes would have failed tasks whose executor was still working,
+on every slow repository.
+
+Settling the box task also releases the box: a `done` event, a cancelled mission, and a
+watchdog close each tear the instance down, which frees the company's box slot and revokes
+the callback credential rather than waiting for the deadline.
+
 ## Guardrails
 
 | Limit | Value | Where |
@@ -269,6 +353,9 @@ live in Convex env only, never in the repo or client code.
 | Memory per prompt | `MEMORY_CHAR_BUDGET` = 1200, spent last | `lib/roster.ts` |
 | Stale mission watchdog | 15 min without progress | `missions.failStaleMissions`, cron every 5 min |
 | Eligible companies | `status === "live"` only | `missions.startMission` |
+| Dev boxes per mission | 1, ever — and only if `execute` | `boxes.claimBoxForTask`, `devBoxes.by_mission` |
+| Dev boxes per user / global | 5 and 20 per day, shared with the manual button | sliding-window `rateLimits` |
+| Box task settle deadline | box's own runtime cap + 5 min | `boxes.expireMissionBox` |
 
 Missions are owner-only end to end: `startMission`, `cancel`, `listForCompany`,
 `missionBoard`, `listMemory`, and `forgetMemory` all check the Clerk subject against
@@ -310,17 +397,23 @@ The design borrows deliberately from open-source work; what we took and what we 
   best-effort model call scheduled off the settle rather than an always-on scratchpad, and the
   owner can delete any row. **Skills not adopted** — nothing an agent learns becomes
   executable; memory is text a future prompt reads, and that is all.
-- **orca** — parallel git worktrees, one agent per worktree. **Not in the mission engine.**
-  It is the direction the dev-box flow points (`docs/PROVISIONING.md`), where a real box
-  works on a branch and opens a PR.
+- **orca** — parallel git worktrees, one agent per worktree. **Still not adopted.** A mission
+  can put *one* task on a real box (above), which is one branch and one PR, not N agents in N
+  worktrees. Parallel execution would mean N boxes per mission — precisely the cost the
+  one-box-per-mission rule exists to refuse.
 
 ## Non-goals
 
 - **Agents draft; humans ship.** A mission produces specs, copy, plans, and code text. It
-  does not deploy, publish, post, spend, or merge anything.
-- **No execution outside the app.** The mission engine only calls a model API and writes to
-  Convex. The one path from a draft to a real change in a repo is the existing dev-box flow
-  (`docs/PROVISIONING.md`) — separately feature-flagged, PR-only, never auto-merged.
+  does not deploy, publish, post, or merge anything. The one exception is stated rather than
+  buried: an `execute` mission spends cents of EC2 and pushes a `clawmart/*` branch to open a
+  pull request. It cannot merge one — that is the owner's click, on a protected base branch,
+  with a bot PAT that has no `workflows` scope.
+- **Execution is opt-in, flagged, and singular.** The mission engine calls a model API and
+  writes to Convex; the only path from a draft to a real change in a repo is the dev-box flow
+  (`docs/PROVISIONING.md`), reached only through the bridge above — one box per mission, only
+  for a `codeCapable` specialist, only when the owner asked for it, and only while
+  `CLAWMART_BOXES_ENABLED` is set. It is unset in production.
 - **No shared scratchpad and no learned skills.** Cross-mission memory is exactly one capped,
   owner-editable list of distilled text per company — never executable, never written mid-
   mission. There is still no agent-to-agent chat outside the handoff edges in the plan.
