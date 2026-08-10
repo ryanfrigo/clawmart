@@ -136,6 +136,11 @@ export default defineSchema({
       v.literal("failed"),
       v.literal("cancelled")
     ),
+    // Opt-in: may this mission hand a codeCapable task to a real dev box
+    // (docs/PROVISIONING.md) instead of drafting text? Optional and absent on
+    // every existing row — a mission without it behaves exactly as before, and
+    // even with it the whole path stays behind CLAWMART_BOXES_ENABLED.
+    execute: v.optional(v.boolean()),
     approach: v.optional(v.string()), // orchestrator's one-line plan rationale
     taskCount: v.number(), // 0 until the plan lands
     doneCount: v.number(), // settled tasks: done + failed + skipped
@@ -236,6 +241,16 @@ export default defineSchema({
     // sha-256 hex of the per-box callback secret — validates the box's audit POSTs
     // without ever storing the raw secret (raw lives only in SSM, read by the box).
     callbackSecretHash: v.string(),
+    // Mission bridge (docs/AGENCY.md). Set only when the Agency dispatched this
+    // box for one mission task; absent on a box the owner started by hand. At
+    // most ONE row per missionId ever exists (boxes.claimBoxForTask), which is
+    // what makes "one box per mission" a database fact rather than a convention.
+    missionId: v.optional(v.id("missions")),
+    missionTaskId: v.optional(v.id("missionTasks")),
+    // The pull request the box reported opening, if any. Recorded only when the
+    // link resolves under repoUrl (lib/boxevents.ts) — the box's event stream
+    // also carries untrusted repository bytes.
+    prUrl: v.optional(v.string()),
     error: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -243,5 +258,7 @@ export default defineSchema({
   })
     .index("by_company", ["companyId"])
     .index("by_box", ["boxId"])
-    .index("by_owner", ["ownerId"]),
+    .index("by_owner", ["ownerId"])
+    // The one-box-per-mission check runs on every dispatch; never a table scan.
+    .index("by_mission", ["missionId"]),
 });

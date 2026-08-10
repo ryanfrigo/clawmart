@@ -18,6 +18,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { boxDeadlineMs, boxTaskEnvelope } from "./lib/boxevents";
 import {
   getAgent,
   MAX_COMPANY_MEMORY,
@@ -126,6 +127,11 @@ export const startMission = mutation({
     companyId: v.id("companies"),
     goal: v.string(),
     strategy: v.union(v.literal("free"), v.literal("balanced"), v.literal("quality")),
+    // Opt in to real execution: a codeCapable specialist may be handed to a dev
+    // box instead of drafting text (docs/AGENCY.md "Missions that execute").
+    // Optional, defaults off, and still subject to CLAWMART_BOXES_ENABLED — with
+    // the flag unset this changes nothing about how the mission runs.
+    execute: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<{ missionId: Id<"missions"> }> => {
     const identity = await requireIdentity(ctx);
@@ -162,6 +168,8 @@ export const startMission = mutation({
       ownerId: identity.subject,
       goal,
       strategy: args.strategy,
+      // Written only when opted in, so a normal mission row is unchanged.
+      ...(args.execute === true ? { execute: true } : {}),
       status: "planning",
       taskCount: 0,
       doneCount: 0,
@@ -203,6 +211,17 @@ export const cancel = mutation({
       updatedAt: now,
       finishedAt: now,
     });
+    // A mission that opted into execution may own a real EC2 instance, and
+    // cancelling the mission has to stop paying for it. Scheduled rather than
+    // imported so boxes.ts can keep importing this module without a cycle, and
+    // gated on `execute` so a mission that never touched a box does exactly what
+    // it did before this existed.
+    if (mission.execute === true) {
+      await ctx.scheduler.runAfter(0, internal.boxes.releaseMissionBox, {
+        missionId: args.missionId,
+        reason: "mission cancelled",
+      });
+    }
     await event(ctx, mission.companyId, EVENT_KEY, "status", "Mission cancelled by owner.");
     return null;
   },
@@ -584,6 +603,10 @@ export const taskContext = internalQuery({
       missionId: task.missionId, // the engine ticks the mission after settling
       goal: mission.goal,
       strategy: mission.strategy,
+      // Did the owner opt this mission into real execution? The engine still has
+      // to clear boxes.claimBoxForTask (feature flag, allowlist, rate limits,
+      // one box per mission) before anything is dispatched.
+      execute: mission.execute === true,
       agentKey: task.agentKey,
       title: task.title,
       brief: task.brief,
@@ -593,6 +616,85 @@ export const taskContext = internalQuery({
     };
   },
 });
+
+/**
+ * Mark one running task delivered and roll its numbers into the mission.
+ *
+ * Extracted so the model path (completeTask) and the dev-box path
+ * (settleTaskFromBox) share exactly one definition of "delivered" — two copies
+ * would drift on the mission counters, which are what claimReadyTasks settles
+ * the whole mission from.
+ */
+async function markTaskDone(
+  ctx: MutationCtx,
+  task: Doc<"missionTasks">,
+  result: {
+    outputJson: string;
+    summary: string;
+    handoff: string;
+    model: string;
+    tokensIn?: number;
+    tokensOut?: number;
+  }
+): Promise<void> {
+  await ctx.db.patch(task._id, {
+    status: "done",
+    outputJson: result.outputJson,
+    handoff: result.handoff,
+    model: result.model,
+    tokensIn: result.tokensIn,
+    tokensOut: result.tokensOut,
+    finishedAt: Date.now(),
+  });
+
+  const mission = await ctx.db.get(task.missionId);
+  if (mission) {
+    await ctx.db.patch(task.missionId, {
+      doneCount: mission.doneCount + 1,
+      tokensIn: mission.tokensIn + (result.tokensIn ?? 0),
+      tokensOut: mission.tokensOut + (result.tokensOut ?? 0),
+      updatedAt: Date.now(),
+    });
+  }
+
+  await event(
+    ctx,
+    task.companyId,
+    task.agentKey,
+    "output",
+    `${getAgent(task.agentKey)?.name ?? task.agentKey}: ${result.summary}`
+  );
+}
+
+/** The failure twin of markTaskDone. Same reason for existing. */
+async function markTaskFailed(
+  ctx: MutationCtx,
+  task: Doc<"missionTasks">,
+  error: string
+): Promise<void> {
+  await ctx.db.patch(task._id, {
+    status: "failed",
+    error: error.slice(0, 500),
+    finishedAt: Date.now(),
+  });
+
+  const mission = await ctx.db.get(task.missionId);
+  if (mission) {
+    await ctx.db.patch(task.missionId, {
+      doneCount: mission.doneCount + 1,
+      failedCount: mission.failedCount + 1,
+      updatedAt: Date.now(),
+    });
+  }
+
+  await event(
+    ctx,
+    task.companyId,
+    task.agentKey,
+    "status",
+    `${getAgent(task.agentKey)?.name ?? task.agentKey} failed: ${error.slice(0, 160)}`
+  );
+}
 
 export const completeTask = internalMutation({
   args: {
@@ -607,34 +709,7 @@ export const completeTask = internalMutation({
   handler: async (ctx, args): Promise<null> => {
     const task = await ctx.db.get(args.taskId);
     if (!task || task.status !== "running") return null;
-
-    await ctx.db.patch(args.taskId, {
-      status: "done",
-      outputJson: args.outputJson,
-      handoff: args.handoff,
-      model: args.model,
-      tokensIn: args.tokensIn,
-      tokensOut: args.tokensOut,
-      finishedAt: Date.now(),
-    });
-
-    const mission = await ctx.db.get(task.missionId);
-    if (mission) {
-      await ctx.db.patch(task.missionId, {
-        doneCount: mission.doneCount + 1,
-        tokensIn: mission.tokensIn + (args.tokensIn ?? 0),
-        tokensOut: mission.tokensOut + (args.tokensOut ?? 0),
-        updatedAt: Date.now(),
-      });
-    }
-
-    await event(
-      ctx,
-      task.companyId,
-      task.agentKey,
-      "output",
-      `${getAgent(task.agentKey)?.name ?? task.agentKey}: ${args.summary}`
-    );
+    await markTaskDone(ctx, task, args);
     return null;
   },
 });
@@ -644,32 +719,84 @@ export const failTask = internalMutation({
   handler: async (ctx, args): Promise<null> => {
     const task = await ctx.db.get(args.taskId);
     if (!task || task.status !== "running") return null;
-
-    await ctx.db.patch(args.taskId, {
-      status: "failed",
-      error: args.error.slice(0, 500),
-      finishedAt: Date.now(),
-    });
-
-    const mission = await ctx.db.get(task.missionId);
-    if (mission) {
-      await ctx.db.patch(task.missionId, {
-        doneCount: mission.doneCount + 1,
-        failedCount: mission.failedCount + 1,
-        updatedAt: Date.now(),
-      });
-    }
-
-    await event(
-      ctx,
-      task.companyId,
-      task.agentKey,
-      "status",
-      `${getAgent(task.agentKey)?.name ?? task.agentKey} failed: ${args.error.slice(0, 160)}`
-    );
+    await markTaskFailed(ctx, task, args.error);
     return null;
   },
 });
+
+// ---------------------------------------------------------------------------
+// Internal: the dev-box bridge (called from boxes.ts, same transaction)
+// ---------------------------------------------------------------------------
+
+/**
+ * Settle a task that was dispatched to a dev box, from whatever the box did.
+ *
+ * Called directly (not scheduled) by every path in boxes.ts that learns a box's
+ * fate: the harness's terminal event, a provisioning failure, termination, and
+ * the deadline mutation. In-transaction and idempotent — the FIRST caller to
+ * find the task still `running` settles it and the rest are no-ops, so the
+ * "box terminated" path can never overwrite a pull request the box already
+ * reported, in either arrival order.
+ *
+ * A box that reported no pull request FAILS its task. That is the honest
+ * outcome: the skip cascade then settles anything downstream instead of letting
+ * a dependent specialist build on work that does not exist, and partial credit
+ * still lets the rest of the mission finish `done`.
+ */
+export async function settleTaskFromBox(
+  ctx: MutationCtx,
+  taskId: Id<"missionTasks">,
+  outcome: { boxId: string; repoUrl: string; prUrl?: string; error?: string }
+): Promise<void> {
+  const task = await ctx.db.get(taskId);
+  if (!task || task.status !== "running") return;
+
+  if (outcome.prUrl) {
+    const envelope = boxTaskEnvelope({
+      boxId: outcome.boxId,
+      repoUrl: outcome.repoUrl,
+      prUrl: outcome.prUrl,
+      title: task.title,
+    });
+    await markTaskDone(ctx, task, {
+      outputJson: JSON.stringify(envelope),
+      summary: envelope.summary,
+      handoff: envelope.handoff,
+      // Not a model id: the box picks its own model (CLAWMART_BOX_MODEL) and
+      // never reports it on a channel we would trust. Naming the executor is
+      // more useful to the owner than guessing at the model anyway.
+      model: "dev box",
+    });
+  } else {
+    await markTaskFailed(ctx, task, outcome.error ?? "the dev box opened no pull request");
+  }
+
+  // Tick regardless of outcome: this task was holding a concurrency slot and may
+  // be the last thing between the mission and being settled.
+  await ctx.scheduler.runAfter(0, internal.missionEngine.tick, { missionId: task.missionId });
+}
+
+/**
+ * Heartbeat a mission from its box's progress: a box event IS mission progress,
+ * so it should reset the stale-mission clock like any other.
+ *
+ * Defence in depth rather than the main protection — failStaleMissions already
+ * skips a mission whose box is inside its deadline (hasLiveBox), because a box
+ * can legitimately go many minutes between events. This keeps `updatedAt`
+ * honest for the UI and covers the gap where the box row has gone inactive but
+ * events are still arriving.
+ *
+ * It cannot keep a mission alive forever: boxes.expireMissionBox settles the
+ * task at the box's own deadline however chatty the box was.
+ */
+export async function touchMission(
+  ctx: MutationCtx,
+  missionId: Id<"missions">
+): Promise<void> {
+  const mission = await ctx.db.get(missionId);
+  if (!mission || mission.status !== "running") return;
+  await ctx.db.patch(missionId, { updatedAt: Date.now() });
+}
 
 // ---------------------------------------------------------------------------
 // Internal: company memory
@@ -835,6 +962,25 @@ export const reportModelResult = internalMutation({
 // ---------------------------------------------------------------------------
 
 /**
+ * Is this mission's dev box still within the deadline it was dispatched under?
+ *
+ * Reads devBoxes, which boxes.ts owns, because the alternative is importing that
+ * module here and closing the import cycle boxes.ts → missions.ts. Only ever
+ * called for a mission that opted into execution, so a normal mission does not
+ * pay for the query.
+ */
+async function hasLiveBox(ctx: MutationCtx, missionId: Id<"missions">): Promise<boolean> {
+  const cutoff = Date.now() - boxDeadlineMs();
+  const boxes = await ctx.db
+    .query("devBoxes")
+    .withIndex("by_mission", (q) => q.eq("missionId", missionId))
+    .collect();
+  return boxes.some(
+    (b) => (b.status === "provisioning" || b.status === "running") && b.createdAt > cutoff
+  );
+}
+
+/**
  * A crashed action leaves a mission stuck in planning/running, which would hold
  * the per-company active-mission slot forever. Close anything with no progress
  * for MISSION_STALE_MS. Indexed by status — never a table scan.
@@ -850,6 +996,18 @@ export const failStaleMissions = internalMutation({
         .take(50);
       for (const mission of candidates) {
         if (mission.updatedAt > cutoff) continue;
+        // A mission whose dev box is still inside its own deadline is NOT
+        // stalled. A box legitimately runs silent for long stretches — its
+        // verification gate alone allows 15 minutes for install and 10 per step
+        // (infra/agent/harness/verify.py) — and it only reports progress between
+        // them. Closing the mission here would fail a task whose executor is
+        // still working, and would do it on every slow repository.
+        //
+        // This cannot hold a mission open indefinitely: boxes.claimBoxForTask
+        // schedules boxes.expireMissionBox at exactly this deadline, which
+        // settles the task and terminates the box, and the EC2 instance
+        // self-terminates on its own timer regardless.
+        if (mission.execute === true && (await hasLiveBox(ctx, mission._id))) continue;
         const now = Date.now();
         const tasks = await ctx.db
           .query("missionTasks")
@@ -873,6 +1031,15 @@ export const failStaleMissions = internalMutation({
           updatedAt: now,
           finishedAt: now,
         });
+        // A stalled mission that owned a box is the case where an instance is
+        // most likely still burning money with nobody watching it. Same gate as
+        // cancel(): only missions that opted into execution do anything here.
+        if (mission.execute === true) {
+          await ctx.scheduler.runAfter(0, internal.boxes.releaseMissionBox, {
+            missionId: mission._id,
+            reason: "mission stalled",
+          });
+        }
         await event(
           ctx,
           mission.companyId,
