@@ -732,8 +732,38 @@ describe("agents deliver instead of deferring", () => {
     // The whole risk of unblocking deferral is that it reads as permission to
     // invent. Both halves must be present in the same prompt.
     const system = messages()[0].content;
-    expect(system).toMatch(/never state real-world numbers/i);
+    expect(system).toMatch(/never present real-world numbers/i);
     expect(system).toContain("Never invent testimonials");
     expect(system).toMatch(/never promise guaranteed results/i);
+  });
+});
+
+describe("assume-and-label never becomes licence to invent entities", () => {
+  // Second-order finding from mission 2: after the anti-deferral fix the
+  // Market Researcher stopped stalling, but produced a table of invented
+  // Portland shop names with fake emails, and claimed it had "observed public
+  // listings (service bays, staff photos)" — research it never did.
+  const system = () =>
+    buildTaskMessages(getAgent("market-researcher")!, {
+      goal: "Win the first ten paying bike shops in Portland",
+      company: "Wrench — quoting for independent bike mechanics",
+      brief: "Identify the target shops and their decision makers.",
+      upstream: [],
+    })[0].content;
+
+  it("bans fabricated provenance as well as fabricated facts", () => {
+    expect(system()).toMatch(/never describe research or sources you did not consult/i);
+  });
+
+  it("requires placeholders instead of invented brands and contacts", () => {
+    const s = system();
+    expect(s).toMatch(/obvious placeholders/i);
+    expect(s).toMatch(/never invented brands, people, emails, or phone numbers/i);
+  });
+
+  it("still forbids deferral, so the two rules coexist", () => {
+    const s = system();
+    expect(s).toMatch(/only turn/i);
+    expect(s).toMatch(/failed task/i);
   });
 });

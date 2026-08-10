@@ -83,17 +83,22 @@ export const TASK_CONTRACT = `Return ONLY a single valid JSON object, no markdow
  * external facts. A labeled assumption is honest; a blank template is a failed
  * task.
  */
-export const NO_DEFERRAL = `How to handle what you do not know:
+export const NO_DEFERRAL = `Handling what you do not know:
 - This is your only turn: you cannot look anything up, and no later step fills your gaps. Never wait for another agent, ask for data, or hand back an empty template.
-- Instead, write the assumption down, label it as an assumption, and do the work on top of it. A draft resting on labeled assumptions is the deliverable; a plan for how someone else could do your job is a failed task.
-- Assuming is not inventing: never state real-world numbers, company names, or competitor prices as if verified. End your body with what you assumed and what a human should verify.`;
+- Instead, write the assumption down, label it as an assumption, and do the work on top of it. A draft on labeled assumptions is the deliverable; a plan for someone else to do your job is a failed task.
+- Assuming is not inventing. Never present real-world numbers, names, prices, or contacts as findings, and never describe research or sources you did not consult — you consulted none.
+- Where the work would name real outside parties, use obvious placeholders (Shop A, Competitor B), never invented brands, people, emails, or phone numbers; say what a human must gather.
+- End your body with what you assumed and what a human should verify.`;
 
 export const TRUST_RULES = `Hard rules, non-negotiable:
 - This company is PRE-LAUNCH. Never invent testimonials, customer quotes, user counts, revenue, star ratings, press mentions, case studies, or "as seen in" logos.
 - Never promise guaranteed results.
 - Never claim work was executed that you only described. You produce drafts and specs; a human ships them.
-- If you lack information, say so plainly in the body instead of inventing it.
 - Be specific to THIS company. Generic advice that would fit any startup is a failed task.`;
+// NOTE: "if you lack information, say so plainly instead of inventing it" used to
+// live here. It read as permission to down tools — see NO_DEFERRAL, which now
+// owns that case and says what to do instead. Keeping both was the contradiction
+// that made free-tier models ship empty templates.
 
 // ---------------------------------------------------------------------------
 // The roster
