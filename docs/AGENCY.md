@@ -328,3 +328,46 @@ The design borrows deliberately from open-source work; what we took and what we 
   started by their owner.
 - **No task retries beyond the model chain.** A task gets one pass through up to 4 models;
   there is no re-queue. The skip cascade and partial credit make a failed task survivable.
+
+## The feedback loop: `scripts/mission-audit.mjs`
+
+Unit tests stub `fetch` and never call a model, so they can prove a prompt
+*contains* a rule but never that a model *obeyed* it. Every serious defect found
+in the Agency so far came from reading what the specialists actually wrote.
+
+`scripts/mission-audit.mjs` makes that repeatable. It dispatches a real mission
+(or audits an existing one), waits for it to settle, and greps the corpus of
+every deliverable for failure modes that were observed live:
+
+```bash
+# run a fresh mission and audit it
+node scripts/mission-audit.mjs <companyId> "Win the first ten shops" free
+
+# audit one that already ran (owner-scoped queries need the owner's subject)
+CLAWMART_AUDIT_SUBJECT=user_abc node scripts/mission-audit.mjs --mission <missionId>
+```
+
+It exits non-zero when a probe fires, so a prompt change can be gated on it.
+The identity is mocked, which Convex honors only on a dev deployment — it never
+touches production data.
+
+| Probe | The live failure it guards |
+|---|---|
+| `deferral` | Specialists shipped empty templates ("Awaiting the list of target bike shops") instead of work. A refusal travels in the handoff, so it propagated down the DAG and was distilled into permanent memory. |
+| `invented emails` / `invented phones` | Fixing deferral opened the opposite hole: invented shops with fabricated contacts, attached to businesses that may really exist. |
+| `fake provenance` | "based on shop size indicators observed in public listings" — research the model cannot have done, which makes invention look sourced. |
+| `claimed traction` | Trust rule: a pre-launch company has no users or customers to report. |
+| `unlabeled counts` | A count presented as fact. Deliberately *not* a bare number regex — bottom-up sizing is the Market Researcher's actual job, and an earlier version failed a mission for doing it correctly. Hedged numbers ("~60 shops", "120 (assumed)") and targets ("the top 10 shops") are exempt. |
+
+Calibration across three real missions on the free tier, each run before and
+after the relevant fix:
+
+| Mission | deferral | contacts | provenance | verdict |
+|---|---|---|---|---|
+| before any fix | 4 | 0 | 0 | FAIL |
+| anti-deferral only | 0 | 31 | 2 | FAIL |
+| both fixes | 0 | 0 | 0 | **PASS** |
+
+The probes are a lagging indicator, not a spec — when one fires, read the
+samples before changing a prompt. Twice the honest conclusion was that the
+probe was wrong and the model was right.
