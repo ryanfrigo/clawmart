@@ -65,12 +65,40 @@ export const TASK_CONTRACT = `Return ONLY a single valid JSON object, no markdow
   "handoff": "2-3 sentences: what the next agent must know to build on this"
 }`;
 
+/**
+ * Anti-deferral clause.
+ *
+ * Found by running a real mission: the Market Researcher answered "I don't have
+ * verified contact data for Portland bike shops, below is a research plan and a
+ * template you can use", and the Competitive Analyst downstream of it answered
+ * "Awaiting the list of target bike shops". Both shipped empty templates, and
+ * because the refusal travels in the handoff it propagated down the DAG.
+ *
+ * The cause is a genuine conflict in the old prompt: "do the work itself" versus
+ * TRUST_RULES' "if you lack information, say so plainly instead of inventing
+ * it". A weaker (free-tier) model resolves that by refusing everything.
+ *
+ * So the rule has to say what to do INSTEAD of deferring, while keeping the
+ * fabrication ban intact: assume explicitly and label it, never invent specific
+ * external facts. A labeled assumption is honest; a blank template is a failed
+ * task.
+ */
+export const NO_DEFERRAL = `Handling what you do not know:
+- This is your only turn: you cannot look anything up, and no later step fills your gaps. Never wait for another agent, ask for data, or hand back an empty template.
+- Instead, write the assumption down, label it as an assumption, and do the work on top of it. A draft on labeled assumptions is the deliverable; a plan for someone else to do your job is a failed task.
+- Assuming is not inventing. Never present real-world numbers, names, prices, or contacts as findings, and never describe research or sources you did not consult — you consulted none.
+- Where the work would name real outside parties, use obvious placeholders (Shop A, Competitor B), never invented brands, people, emails, or phone numbers; say what a human must gather.
+- End your body with what you assumed and what a human should verify.`;
+
 export const TRUST_RULES = `Hard rules, non-negotiable:
 - This company is PRE-LAUNCH. Never invent testimonials, customer quotes, user counts, revenue, star ratings, press mentions, case studies, or "as seen in" logos.
 - Never promise guaranteed results.
 - Never claim work was executed that you only described. You produce drafts and specs; a human ships them.
-- If you lack information, say so plainly in the body instead of inventing it.
 - Be specific to THIS company. Generic advice that would fit any startup is a failed task.`;
+// NOTE: "if you lack information, say so plainly instead of inventing it" used to
+// live here. It read as permission to down tools — see NO_DEFERRAL, which now
+// owns that case and says what to do instead. Keeping both was the contradiction
+// that made free-tier models ship empty templates.
 
 // ---------------------------------------------------------------------------
 // The roster
@@ -563,7 +591,7 @@ export function buildTaskMessages(agent: RosterAgent, ctx: TaskContext): ChatMes
       content: `You are ${agent.name}, ${agent.role}. You are one specialist on a founding team working a shared mission.
 You are accountable for: ${agent.delivers}.
 ${TRUST_RULES}
-Do the work itself — do not describe what you would do, and do not restate the brief back.
+${NO_DEFERRAL}
 ${TASK_CONTRACT}`,
     },
     { role: "user", content: user },
@@ -600,7 +628,8 @@ Rules:
 - "agentKey" MUST be copied exactly from the roster below. Never invent a key.
 - Never assign the same agent twice — pick a different specialist instead.
 - "dependsOn" holds zero-based indexes of EARLIER tasks in this array only. No cycles, no forward references.
-- Maximize parallelism: only add a dependency when the task genuinely needs the upstream output.
+- Tasks with no dependency between them RUN AT THE SAME TIME; a task waits for every entry in its dependsOn. So a chain where each task depends on the one before it executes strictly one-at-a-time and takes several times longer for no benefit. Add a dependency only when the task genuinely cannot start without that specific output, and expect most missions to start with two or three tasks at "dependsOn": [] attacking different angles at once.
+- Do not chain a task to an upstream just to give it context — every specialist already receives the goal, the company, and what the company has learned.
 - Every "brief" is 1-3 sentences addressed to that specialist, specific to this goal — never a restatement of the goal.
 - The final task should usually be a synthesis that depends on the others.
 ${TRUST_RULES}
@@ -786,6 +815,32 @@ export function validatePlan(raw: Record<string, unknown>): ValidatedPlan {
       )
     ).sort((a, b) => a - b),
   }));
+
+  // Pass 3: transitive reduction. Planners routinely over-link — a real plan
+  // observed in testing had task 3 depend on [0,1,2] while task 2 already
+  // depended on [0,1]. Those edges are redundant: "2 is done" already implies
+  // "0 and 1 are done", so dropping them cannot change scheduling or ordering
+  // by even one tick. What it does change is context — buildTaskMessages sends
+  // one handoff per dependency, so task 3 carried three upstream blocks where
+  // one says everything, and that waste is charged against the same budget the
+  // agent's own brief and the company's memory compete for.
+  const ancestors: Set<number>[] = [];
+  for (const task of tasks) {
+    const anc = new Set<number>();
+    for (const d of task.dependsOn) {
+      anc.add(d);
+      for (const a of ancestors[d]) anc.add(a);
+    }
+    ancestors.push(anc);
+  }
+  for (const task of tasks) {
+    const deps = task.dependsOn;
+    if (deps.length > 1) {
+      task.dependsOn = deps.filter(
+        (d) => !deps.some((other) => other !== d && ancestors[other].has(d))
+      );
+    }
+  }
 
   const approach =
     typeof raw.approach === "string" && raw.approach.trim()

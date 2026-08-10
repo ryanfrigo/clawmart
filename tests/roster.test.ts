@@ -310,7 +310,10 @@ describe("validatePlan", () => {
       "pricing-analyst",
       "chief-of-staff",
     ]);
-    expect(plan.tasks.map((t) => t.dependsOn)).toEqual([[], [0], [0, 1]]);
+    // [0, 1] reduces to [1]: task 1 already depends on 0, so the edge to 0 is
+    // implied. Scheduling is identical; the synthesis task just stops carrying
+    // a handoff that says nothing its other dependency does not already cover.
+    expect(plan.tasks.map((t) => t.dependsOn)).toEqual([[], [0], [1]]);
   });
 
   it("drops unknown agents and duplicates, then remaps surviving dependencies", () => {
@@ -384,9 +387,13 @@ describe("validatePlan", () => {
     });
     expect(plan.tasks.length).toBe(MAX_TASKS);
     expect(plan.tasks.map((t) => t.agentKey)).toEqual(keys.slice(0, MAX_TASKS));
-    expect(plan.tasks[MAX_TASKS - 1].dependsOn).toEqual(
-      Array.from({ length: MAX_TASKS - 1 }, (_, j) => j)
-    );
+    // Every task here depends on all its predecessors, so the chain is fully
+    // transitive and reduces to a single edge on the immediate predecessor.
+    expect(plan.tasks[MAX_TASKS - 1].dependsOn).toEqual([MAX_TASKS - 2]);
+    // Reduction must never push an edge out of range or forward.
+    plan.tasks.forEach((t, i) => {
+      for (const d of t.dependsOn) expect(d).toBeLessThan(i);
+    });
   });
 
   it("clamps a long approach and defaults a missing one", () => {
@@ -600,5 +607,190 @@ describe("memory injection never mutilates a learning", () => {
 
   it("keeps memory inside its own budget when nothing else competes", () => {
     expect(renderMemory(LEARNINGS).length).toBeLessThanOrEqual(MEMORY_CHAR_BUDGET);
+  });
+});
+
+describe("validatePlan transitive reduction", () => {
+  const t = (agentKey: string, dependsOn: number[]) => ({
+    title: `T ${agentKey}`,
+    agentKey,
+    brief: "do the thing",
+    dependsOn,
+  });
+
+  it("drops edges already implied by another dependency", () => {
+    // The exact shape a real planner produced for "win the first ten shops":
+    // task 3 listed [0,1,2] while task 2 already depended on [0,1].
+    const plan = validatePlan({
+      tasks: [
+        t("market-researcher", []),
+        t("competitive-analyst", [0]),
+        t("pricing-analyst", [0, 1]),
+        t("product-manager", [0, 1, 2]),
+      ],
+    });
+    expect(plan.tasks[1].dependsOn).toEqual([0]);
+    expect(plan.tasks[2].dependsOn).toEqual([1]); // 0 implied by 1
+    expect(plan.tasks[3].dependsOn).toEqual([2]); // 0 and 1 implied by 2
+  });
+
+  it("keeps genuinely independent dependencies", () => {
+    // 3 needs both 1 and 2, and neither reaches the other — a real join.
+    const plan = validatePlan({
+      tasks: [
+        t("market-researcher", []),
+        t("competitive-analyst", [0]),
+        t("ux-researcher", [0]),
+        t("growth-hacker", [1, 2]),
+      ],
+    });
+    expect(plan.tasks[3].dependsOn).toEqual([1, 2]);
+  });
+
+  it("preserves execution order exactly — reduction is scheduling-neutral", () => {
+    // Property: a task is runnable once all deps are done. Simulate waves on
+    // the reduced graph and on the original, and assert identical orderings.
+    const original = [
+      t("market-researcher", []),
+      t("competitive-analyst", [0]),
+      t("pricing-analyst", [0, 1]),
+      t("product-manager", [0, 1, 2]),
+      t("ux-researcher", [0]),
+      t("sales-strategist", [0]),
+      t("growth-hacker", [0, 1, 2, 3, 5]),
+    ];
+    const reduced = validatePlan({ tasks: original }).tasks;
+
+    const waves = (tasks: { dependsOn: number[] }[]) => {
+      const done = new Set<number>();
+      const out: number[][] = [];
+      while (done.size < tasks.length) {
+        const ready = tasks
+          .map((task, i) => ({ task, i }))
+          .filter(({ task, i }) => !done.has(i) && task.dependsOn.every((d) => done.has(d)))
+          .map(({ i }) => i);
+        if (ready.length === 0) throw new Error("deadlock");
+        out.push(ready);
+        for (const i of ready) done.add(i);
+      }
+      return out;
+    };
+
+    expect(waves(reduced)).toEqual(waves(original));
+    // And the point of the exercise: strictly fewer handoffs to ship.
+    const edges = (tasks: { dependsOn: number[] }[]) =>
+      tasks.reduce((n, task) => n + task.dependsOn.length, 0);
+    expect(edges(reduced)).toBeLessThan(edges(original));
+  });
+
+  it("never introduces a forward or self edge", () => {
+    const plan = validatePlan({
+      tasks: [
+        t("market-researcher", []),
+        t("competitive-analyst", [0]),
+        t("pricing-analyst", [0, 1]),
+        t("product-manager", [1, 2]),
+        t("growth-hacker", [0, 2, 3]),
+      ],
+    });
+    plan.tasks.forEach((task, i) => {
+      for (const d of task.dependsOn) {
+        expect(d).toBeLessThan(i);
+        expect(d).toBeGreaterThanOrEqual(0);
+      }
+    });
+  });
+});
+
+describe("agents deliver instead of deferring", () => {
+  // Regression guard for a failure observed on a real mission: specialists
+  // shipped empty templates ("Awaiting the list of target bike shops") instead
+  // of doing their job, and the refusal propagated down the DAG via handoffs.
+  const messages = () =>
+    buildTaskMessages(getAgent("competitive-analyst")!, {
+      goal: "Win the first ten paying bike shops in Portland",
+      company: "Wrench — quoting for independent bike mechanics",
+      brief: "Map the incumbent tools these shops use today.",
+      upstream: [{ agent: "Market Researcher", title: "Identify shops", handoff: "h" }],
+    });
+
+  it("forbids waiting, asking for data, and blank templates", () => {
+    const system = messages()[0].content;
+    expect(system).toMatch(/only turn/i);
+    expect(system).toMatch(/never wait for another agent/i);
+    expect(system).toMatch(/empty template/i);
+    expect(system).toMatch(/failed task/i);
+  });
+
+  it("tells the agent to assume-and-label rather than stall", () => {
+    const system = messages()[0].content;
+    expect(system).toMatch(/label it as an assumption/i);
+    expect(system).toMatch(/what a human should verify/i);
+  });
+
+  it("keeps the fabrication ban intact alongside the assume-and-label licence", () => {
+    // The whole risk of unblocking deferral is that it reads as permission to
+    // invent. Both halves must be present in the same prompt.
+    const system = messages()[0].content;
+    expect(system).toMatch(/never present real-world numbers/i);
+    expect(system).toContain("Never invent testimonials");
+    expect(system).toMatch(/never promise guaranteed results/i);
+  });
+});
+
+describe("assume-and-label never becomes licence to invent entities", () => {
+  // Second-order finding from mission 2: after the anti-deferral fix the
+  // Market Researcher stopped stalling, but produced a table of invented
+  // Portland shop names with fake emails, and claimed it had "observed public
+  // listings (service bays, staff photos)" — research it never did.
+  const system = () =>
+    buildTaskMessages(getAgent("market-researcher")!, {
+      goal: "Win the first ten paying bike shops in Portland",
+      company: "Wrench — quoting for independent bike mechanics",
+      brief: "Identify the target shops and their decision makers.",
+      upstream: [],
+    })[0].content;
+
+  it("bans fabricated provenance as well as fabricated facts", () => {
+    expect(system()).toMatch(/never describe research or sources you did not consult/i);
+  });
+
+  it("requires placeholders instead of invented brands and contacts", () => {
+    const s = system();
+    expect(s).toMatch(/obvious placeholders/i);
+    expect(s).toMatch(/never invented brands, people, emails, or phone numbers/i);
+  });
+
+  it("still forbids deferral, so the two rules coexist", () => {
+    const s = system();
+    expect(s).toMatch(/only turn/i);
+    expect(s).toMatch(/failed task/i);
+  });
+});
+
+describe("planner is told how parallelism actually works", () => {
+  // Mission 2 produced a fully serial 5-task chain (0<-1<-2<-3<-4), leaving the
+  // concurrency machinery idle and multiplying wall-clock on the free tier.
+  // The old prompt said "maximize parallelism" without explaining the mechanism
+  // or its cost, which is not something a weaker model can act on.
+  const system = () => planMessages("Win the first ten shops", "Wrench — quoting")[0].content;
+
+  it("states the execution model and the cost of chaining", () => {
+    const s = system();
+    expect(s).toMatch(/RUN AT THE SAME TIME/);
+    expect(s).toMatch(/one-at-a-time/i);
+  });
+
+  it("asks for independent roots and forbids chaining merely for context", () => {
+    const s = system();
+    expect(s).toMatch(/"dependsOn": \[\]/);
+    expect(s).toMatch(/not chain a task to an upstream just to give it context/i);
+  });
+
+  it("still forbids inventing agent keys and repeating a specialist", () => {
+    const s = system();
+    expect(s).toMatch(/Never invent a key/i);
+    expect(s).toMatch(/Never assign the same agent twice/i);
+    for (const agent of ROSTER) expect(s).toContain(agent.key);
   });
 });
