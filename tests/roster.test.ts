@@ -767,3 +767,30 @@ describe("assume-and-label never becomes licence to invent entities", () => {
     expect(s).toMatch(/failed task/i);
   });
 });
+
+describe("planner is told how parallelism actually works", () => {
+  // Mission 2 produced a fully serial 5-task chain (0<-1<-2<-3<-4), leaving the
+  // concurrency machinery idle and multiplying wall-clock on the free tier.
+  // The old prompt said "maximize parallelism" without explaining the mechanism
+  // or its cost, which is not something a weaker model can act on.
+  const system = () => planMessages("Win the first ten shops", "Wrench — quoting")[0].content;
+
+  it("states the execution model and the cost of chaining", () => {
+    const s = system();
+    expect(s).toMatch(/RUN AT THE SAME TIME/);
+    expect(s).toMatch(/one-at-a-time/i);
+  });
+
+  it("asks for independent roots and forbids chaining merely for context", () => {
+    const s = system();
+    expect(s).toMatch(/"dependsOn": \[\]/);
+    expect(s).toMatch(/not chain a task to an upstream just to give it context/i);
+  });
+
+  it("still forbids inventing agent keys and repeating a specialist", () => {
+    const s = system();
+    expect(s).toMatch(/Never invent a key/i);
+    expect(s).toMatch(/Never assign the same agent twice/i);
+    for (const agent of ROSTER) expect(s).toContain(agent.key);
+  });
+});

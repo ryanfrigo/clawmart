@@ -628,7 +628,8 @@ Rules:
 - "agentKey" MUST be copied exactly from the roster below. Never invent a key.
 - Never assign the same agent twice — pick a different specialist instead.
 - "dependsOn" holds zero-based indexes of EARLIER tasks in this array only. No cycles, no forward references.
-- Maximize parallelism: only add a dependency when the task genuinely needs the upstream output.
+- Tasks with no dependency between them RUN AT THE SAME TIME; a task waits for every entry in its dependsOn. So a chain where each task depends on the one before it executes strictly one-at-a-time and takes several times longer for no benefit. Add a dependency only when the task genuinely cannot start without that specific output, and expect most missions to start with two or three tasks at "dependsOn": [] attacking different angles at once.
+- Do not chain a task to an upstream just to give it context — every specialist already receives the goal, the company, and what the company has learned.
 - Every "brief" is 1-3 sentences addressed to that specialist, specific to this goal — never a restatement of the goal.
 - The final task should usually be a synthesis that depends on the others.
 ${TRUST_RULES}
