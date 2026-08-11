@@ -27,7 +27,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-16 sm:px-6 sm:py-20">
       <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
-        Effective 2026-07-12
+        Effective 2026-08-10
       </p>
       <h1 className="mt-3 font-display text-4xl tracking-tight sm:text-5xl">
         Privacy Policy
@@ -48,8 +48,8 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong className="text-foreground">An account, to build.</strong>{" "}
-          Creating a company requires signing in, handled by Clerk. We store
-          your email and account identifier.
+          Creating a company requires signing in with an email and password. We
+          store your email, a hash of your password, and an account identifier.
         </li>
         <li>
           <strong className="text-foreground">Your ideas and the drafts.</strong>{" "}
@@ -57,6 +57,20 @@ export default function PrivacyPage() {
           to generate the drafts, and the generated drafts are stored with your
           account. Don&apos;t include personal or confidential information in
           an idea.
+        </li>
+        <li>
+          <strong className="text-foreground">
+            Your voice, only while you hold the mic.
+          </strong>{" "}
+          Dictation is optional and does nothing until you press the microphone
+          button and your browser asks permission. Where the audio goes depends
+          on the browser: Chrome, Edge and Safari use their own built-in speech
+          recognition, which sends it to Google, Microsoft or Apple respectively
+          under their privacy policies, not ours. Browsers without it (Firefox)
+          record locally and send that clip to us once, and we forward it to
+          OpenRouter for transcription. We keep the text, never the audio — no
+          recording is written to disk or stored on our side. Typing works
+          everywhere, so you never have to give up a microphone to use this.
         </li>
         <li>
           <strong className="text-foreground">Company pages are public.</strong>{" "}
@@ -95,15 +109,21 @@ export default function PrivacyPage() {
       <H2>Who processes data for us</H2>
       <ul className="mt-4 list-disc space-y-2 pl-5 text-[14.5px] leading-relaxed text-muted-foreground">
         <li>
-          <strong className="text-foreground">Clerk</strong> — account sign-in.
-        </li>
-        <li>
-          <strong className="text-foreground">Convex</strong> — our database
-          (companies, drafts, waitlist, legacy purchases).
+          <strong className="text-foreground">Convex</strong> — our database and
+          account sign-in (companies, drafts, waitlist, legacy purchases).
         </li>
         <li>
           <strong className="text-foreground">OpenRouter</strong> — routes
-          idea text to AI model providers to generate drafts.
+          idea text to AI model providers to generate drafts, and transcribes
+          dictation on browsers without built-in speech recognition.
+        </li>
+        <li>
+          <strong className="text-foreground">
+            Your browser&apos;s speech service
+          </strong>{" "}
+          — Google, Microsoft or Apple, depending on the browser, receives
+          dictation audio directly if you use the microphone. It never passes
+          through us on that path.
         </li>
         <li>
           <strong className="text-foreground">Vercel</strong> — hosting.
@@ -126,7 +146,7 @@ export default function PrivacyPage() {
         record deleted? Email{" "}
         <a
           href={`mailto:${SUPPORT_EMAIL}?subject=Data%20deletion`}
-          className="text-lobster underline underline-offset-4"
+          className="text-foreground underline decoration-[color:var(--rule)] underline-offset-4 transition-colors hover:decoration-lobster"
         >
           {SUPPORT_EMAIL}
         </a>{" "}

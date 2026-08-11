@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 /**
  * Clawmart v2 schema — premium OpenClaw skill-pack storefront.
@@ -7,8 +8,17 @@ import { v } from "convex/values";
  * Guest-first: no user accounts. A purchase is keyed by an unguessable token
  * (the delivery URL). Money mutations are internal; the only public surface is
  * createPending / attachStripeSession (secret-guarded) and getByToken.
+ *
+ * Studio surfaces DO have accounts: `...authTables` below is Convex Auth's own
+ * schema (`users`, `authAccounts`, `authSessions`, `authRefreshTokens`,
+ * `authVerificationCodes`, `authVerifiers`, `authRateLimits`) — see
+ * convex/auth.ts. Those tables are owned by the library; never write to them
+ * directly. `companies.ownerId` / `missions.ownerId` / `devBoxes.ownerId` hold
+ * an `Id<"users">` from that set.
  */
 export default defineSchema({
+  ...authTables,
+
   // One row per checkout attempt. Stripe drives it pending_payment -> paid|failed.
   purchases: defineTable({
     token: v.string(), // 128-bit hex — the download URL key. Never expose _id.
@@ -54,10 +64,13 @@ export default defineSchema({
 
   // ---- Company Studio (docs/COMPANY-STUDIO.md) ----------------------------
 
-  // One row per user company idea. Owned by a Clerk user; public via slug.
+  // One row per user company idea. Owned by an account; public via slug.
   companies: defineTable({
-    ownerId: v.string(), // Clerk subject
-    ownerEmail: v.optional(v.string()), // for the morning digest (from Clerk JWT)
+    // Id<"users"> from Convex Auth, stored as a string (this table predates the
+    // users table). NEVER identity.subject — Convex Auth mints `sub` as
+    // "<userId>|<sessionId>", so the raw subject rotates every session.
+    ownerId: v.string(),
+    ownerEmail: v.optional(v.string()), // for the morning digest (from the user doc)
     slug: v.string(), // public URL key — re-slugged from brand name mid-build
     slugLocked: v.optional(v.boolean()), // once branded, the slug never changes (shared links)
     lastCheckinAt: v.optional(v.number()), // daily CEO check-in bookkeeping
@@ -122,7 +135,7 @@ export default defineSchema({
 
   missions: defineTable({
     companyId: v.id("companies"),
-    ownerId: v.string(), // Clerk subject — authorizes read/cancel
+    ownerId: v.string(), // Id<"users"> (see companies.ownerId) — authorizes read/cancel
     goal: v.string(), // the user's raw instruction to the army
     strategy: v.union(
       v.literal("free"), // free models only — a free mission can never bill
@@ -223,7 +236,7 @@ export default defineSchema({
   // subsystem is a no-op until the AWS control-plane creds are set in Convex env.
   devBoxes: defineTable({
     companyId: v.id("companies"),
-    ownerId: v.string(), // Clerk subject — authorizes kill/status
+    ownerId: v.string(), // Id<"users"> (see companies.ownerId) — authorizes kill/status
     boxId: v.string(), // public, unguessable id: "box_<hex>"; used in tags + SSM path
     status: v.union(
       v.literal("provisioning"),

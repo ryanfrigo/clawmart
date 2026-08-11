@@ -1,5 +1,14 @@
 /**
- * Convex HTTP router — Stripe webhook.
+ * Convex HTTP router — Convex Auth, the Stripe webhook, and the dev-box audit
+ * callback. The three are independent; auth routes are ADDED to this router,
+ * never in place of anything (a legacy pack delivery must keep working whether
+ * or not anyone is signed in).
+ *
+ * auth.addHttpRoutes adds, under this deployment's .convex.site origin:
+ *   GET /.well-known/openid-configuration
+ *   GET /.well-known/jwks.json
+ * plus /api/auth/signin/* and /api/auth/callback/* once an OAuth provider is
+ * configured. None of those collide with the two routes defined below.
  *
  * POST /stripe/webhook
  * - signature verified with constructEventAsync (SubtleCrypto provider —
@@ -13,6 +22,7 @@ import { httpRouter } from "convex/server";
 import Stripe from "stripe";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { auth } from "./auth";
 import { webhookDecision } from "./lib/pure";
 
 const HANDLED_EVENTS = [
@@ -23,6 +33,10 @@ const HANDLED_EVENTS = [
 ];
 
 const http = httpRouter();
+
+// Sign-in / token refresh / JWKS. Added first so it is obvious these are
+// additive: everything below is untouched by auth being on or off.
+auth.addHttpRoutes(http);
 
 async function sha256Hex(s: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));

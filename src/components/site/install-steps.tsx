@@ -29,17 +29,11 @@ const STEPS: Array<{ n: string; title: string; body: string }> = [
  */
 export function InstallSteps({ compact = false }: { compact?: boolean }) {
   return (
-    <div
-      className={
-        compact
-          ? "grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2"
-          : "grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-4"
-      }
-    >
+    <div className={compact ? "seam-wall sm:grid-cols-2" : "seam-wall md:grid-cols-4"}>
       {STEPS.map((s) => (
-        <div key={s.n} className="bg-background p-6">
-          <span className="font-mono text-[12px] text-lobster">{s.n}</span>
-          <h3 className="mt-3 text-[14.5px] font-semibold tracking-tight">
+        <div key={s.n} className="p-6">
+          <span className="stamp text-tide">{s.n}</span>
+          <h3 className="mt-3 text-[14.5px] font-medium tracking-tight">
             {s.title}
           </h3>
           <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">

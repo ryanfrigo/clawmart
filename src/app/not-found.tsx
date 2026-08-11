@@ -9,7 +9,7 @@ import Link from "next/link";
 export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-5 py-24 text-center">
-      <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-lobster">
+      <p className="stamp">
         404
       </p>
       <h1 className="mt-4 font-display text-[clamp(2.2rem,6vw,3.6rem)] leading-tight tracking-tight">

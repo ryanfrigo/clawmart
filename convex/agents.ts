@@ -11,6 +11,7 @@
  */
 
 import { v, ConvexError } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
@@ -95,11 +96,12 @@ export async function callOpenRouter(
 export const surpriseIdea = action({
   args: {},
   handler: async (ctx): Promise<{ idea: string }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError("unauthenticated");
-    await ctx.runMutation(internal.companies.bumpSurpriseLimit, {
-      userId: identity.subject,
-    });
+    // getAuthUserId, not identity.subject: the raw subject carries a session id
+    // that rotates, which would hand every new session a fresh rate-limit
+    // bucket. The durable user id is the only thing worth limiting on.
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new ConvexError("unauthenticated");
+    await ctx.runMutation(internal.companies.bumpSurpriseLimit, { userId });
     try {
       // 15s budget: this is a button click, not a pipeline step — a slow
       // upstream should degrade to the offline pool, not a 2-minute spinner.

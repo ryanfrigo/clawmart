@@ -1,72 +1,43 @@
 import type { Metadata } from "next";
-import {
-  Boxes,
-  Compass,
-  LayoutTemplate,
-  Megaphone,
-  Palette,
-} from "lucide-react";
-import { StudioLauncher } from "@/components/studio/studio-launcher";
+import Link from "next/link";
+import { MyCompanies, StudioLauncher } from "@/components/studio/studio-launcher";
+import { PipelineFigure, SystemSpecs } from "@/components/site/pipeline-figure";
 import { SUPPORT_EMAIL } from "@/components/site/constants";
+import { AGENTS, PIPELINE } from "../../../convex/lib/agents";
+import { DIVISIONS, ROSTER } from "../../../convex/lib/roster";
 
 /* ---------------- content ---------------- */
 
-const TEAM = [
-  {
-    icon: Compass,
-    title: "Strategist",
-    model: "claude-sonnet-4.6",
-    blurb:
-      "Positioning, problem and solution, ideal customers, business model, real risks, and a 90-day plan.",
-  },
-  {
-    icon: Palette,
-    title: "Brand Designer",
-    model: "gemini-2.5-flash",
-    blurb:
-      "A company name, tagline, voice, and an accessible color palette for the page.",
-  },
-  {
-    icon: Boxes,
-    title: "Product Lead",
-    model: "gemini-2.5-flash",
-    blurb:
-      "Core features, the MVP cut, later ideas, and plausible pricing tiers.",
-  },
-  {
-    icon: LayoutTemplate,
-    title: "Landing Page Engineer",
-    model: "claude-sonnet-4.6",
-    blurb:
-      "The full content of the public company page — hero, features, pricing, FAQ.",
-  },
-  {
-    icon: Megaphone,
-    title: "Marketing Lead",
-    model: "gemini-2.5-flash",
-    blurb:
-      "Launch tweets, a LinkedIn post, a cold email, and a launch-week checklist.",
-  },
-];
+/** Titles and model ids come from the pipeline definition; only the plain-English
+ *  accountability line is editorial. */
+const TEAM_BLURB: Record<(typeof PIPELINE)[number], string> = {
+  strategist:
+    "Positioning, problem and solution, ideal customers, business model, real risks, and a 90-day plan.",
+  brand: "A company name, tagline, voice, and an accessible colour palette for the page.",
+  product: "Core features, the MVP cut, later ideas, and plausible pricing tiers.",
+  landing: "The full content of the public company page — hero, features, pricing, FAQ.",
+  marketing: "Launch tweets, a LinkedIn post, a cold email, and a launch-week checklist.",
+};
 
 const STEPS = [
   {
-    n: "1",
+    n: "01",
     title: "Describe the idea",
     body: "One honest paragraph is enough — the sharper the input, the sharper the build.",
   },
   {
-    n: "2",
+    n: "02",
     title: "Watch five agents build it live",
     body: "The founding team works in sequence, streaming its thinking and output into a live feed.",
   },
   {
-    n: "3",
+    n: "03",
     title: "Share the standalone company page",
     body: "Every company gets its own public landing page and a launch kit you can copy and fire.",
   },
 ];
 
+/* These four are binding disclosures. Wording is deliberate — do not soften. */
 const DISCLOSURES = [
   {
     title: "Drafts, not deliverables",
@@ -130,6 +101,42 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
+/* ---------------- structure ---------------- */
+
+/**
+ * A numbered section. The index hangs in its own ruler column on wide
+ * viewports and sits above the heading on narrow ones — the number is
+ * structure, so it never floats free of the content it labels.
+ */
+function Section({
+  n,
+  title,
+  id,
+  children,
+}: {
+  n: string;
+  title: string;
+  id?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      className="scroll-mt-16 border-t border-[color:var(--rule)] py-16 sm:py-20"
+    >
+      <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+        <div className="grid gap-x-8 gap-y-6 lg:grid-cols-[72px_minmax(0,1fr)]">
+          <p className="stamp lg:pt-1">{n}/</p>
+          <div className="min-w-0">
+            <h2 className="kicker">{title}</h2>
+            <div className="mt-6">{children}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ---------------- page ---------------- */
 
 export default function HomePage() {
@@ -140,128 +147,136 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* ---------- Hero ---------- */}
-      <section className="relative overflow-hidden">
-        {/* ocean glow + sonar rings */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-40 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full bg-lobster/[0.07] blur-[130px]" />
-          <div className="absolute bottom-0 left-[12%] h-[380px] w-[380px] rounded-full bg-tide/[0.06] blur-[110px]" />
-          <div className="absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2">
-            <div className="size-[46rem] rounded-full border border-foreground/[0.04]" />
-            <div className="absolute inset-[5rem] rounded-full border border-foreground/[0.04]" />
-            <div className="absolute inset-[10rem] rounded-full border border-foreground/[0.035]" />
-            <div className="absolute inset-[15rem] rounded-full border border-foreground/[0.03]" />
-          </div>
-        </div>
-
-        <div className="relative mx-auto max-w-4xl px-5 pb-12 pt-20 text-center sm:px-6 sm:pt-28">
-          <p className="anim-rise font-mono text-[12px] uppercase tracking-[0.22em] text-lobster">
-            Clawmart Studio
-          </p>
-          <h1
-            className="anim-rise mt-5 text-balance font-display text-[clamp(2.6rem,7vw,5rem)] leading-[1.02] tracking-tight"
-            style={{ animationDelay: "80ms" }}
-          >
-            Describe your company.{" "}
-            <em className="italic text-lobster">
-              Watch a founding team build it.
-            </em>
-          </h1>
-          <p
-            className="anim-rise mx-auto mt-6 max-w-2xl text-pretty text-[16px] leading-relaxed text-muted-foreground sm:text-[17px]"
-            style={{ animationDelay: "160ms" }}
-          >
-            Type a company or SaaS idea and five AI agents — strategist, brand,
-            product, landing page, marketing — draft the whole thing while you
-            watch: a business plan, an identity, a product spec, a live public
-            page, and a launch kit.
-          </p>
-        </div>
-      </section>
-
-      {/* ---------- Launcher ---------- */}
-      <section className="relative pb-16 sm:pb-20">
-        <div className="mx-auto max-w-3xl px-5 sm:px-6">
-          <StudioLauncher />
-        </div>
-      </section>
-
-      {/* ---------- How it works ---------- */}
-      <section id="how" className="scroll-mt-20 border-t border-border py-20 sm:py-24">
-        <div className="mx-auto max-w-6xl px-5 sm:px-6">
-          <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
-            How it works
-          </p>
-          <h2 className="mt-3 max-w-xl font-display text-4xl tracking-tight sm:text-5xl">
-            Idea in, company out.
-          </h2>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {STEPS.map((s) => (
-              <div key={s.n} className="rounded-2xl border border-border bg-card/40 p-6">
-                <span className="inline-flex size-8 items-center justify-center rounded-lg border border-lobster/40 font-mono text-[13px] text-lobster">
-                  {s.n}
-                </span>
-                <h3 className="mt-4 text-[15px] font-semibold tracking-tight">{s.title}</h3>
-                <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
-                  {s.body}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- Founding team ---------- */}
-      <section className="border-t border-border py-20 sm:py-24">
-        <div className="mx-auto max-w-6xl px-5 sm:px-6">
-          <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
-            The founding team
-          </p>
-          <h2 className="mt-3 max-w-xl font-display text-4xl tracking-tight sm:text-5xl">
-            Five agents, one company.
-          </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
-            Each agent has one job and hands its output to the next. Two run on
-            a premium model where quality compounds; the rest run on a fast
-            one. No black box — you watch every step.
-          </p>
-          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {TEAM.map((m) => (
-              <div key={m.title} className="flex flex-col rounded-xl border border-border bg-card/40 p-5">
-                <m.icon className="size-5 text-lobster" aria-hidden="true" />
-                <p className="mt-3 text-[14px] font-medium tracking-tight">{m.title}</p>
-                <p className="mt-1 font-mono text-[10.5px] text-muted-foreground">
-                  {m.model}
-                </p>
-                <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
-                  {m.blurb}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- Honest disclosure ---------- */}
-      <section className="border-t border-border py-20 sm:py-24">
-        <div className="mx-auto max-w-6xl px-5 sm:px-6">
-          <div className="rounded-2xl border border-border bg-card/40 p-8 sm:p-10">
-            <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
-              The honest fine print
+      {/* ---------- Hero: asymmetric, left-aligned, launcher in the flow ---------- */}
+      <section className="mx-auto max-w-[1200px] px-5 pb-14 pt-12 sm:px-8 sm:pt-16">
+        <div className="grid gap-10 lg:grid-cols-[7fr_5fr] lg:items-start lg:gap-12">
+          <div className="min-w-0">
+            <p className="stamp">Clawmart Studio / Agent factory</p>
+            <h1 className="d1 mt-5 text-balance">
+              Describe your company.{" "}
+              <em className="font-display italic text-lobster">
+                Watch a founding team build it.
+              </em>
+            </h1>
+            <p className="mt-6 max-w-[62ch] text-pretty text-[17px] leading-[1.6] text-muted-foreground">
+              Type a company or SaaS idea and five AI agents — strategist, brand,
+              product, landing page, marketing — draft the whole thing while you watch: a
+              business plan, an identity, a product spec, a live public page, and a launch
+              kit.
             </p>
-            <div className="mt-8 grid gap-x-10 gap-y-6 sm:grid-cols-2">
-              {DISCLOSURES.map((d) => (
-                <div key={d.title}>
-                  <h3 className="text-[14px] font-semibold tracking-tight">{d.title}</h3>
-                  <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-                    {d.body}
-                  </p>
-                </div>
-              ))}
+            <div className="mt-8">
+              <StudioLauncher />
             </div>
           </div>
+
+          <div className="min-w-0 lg:pt-2">
+            <PipelineFigure />
+            <SystemSpecs className="mt-5" />
+          </div>
         </div>
       </section>
+
+      {/* Owner's companies — renders nothing at all when signed out. */}
+      <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+        <MyCompanies className="pb-16" />
+      </div>
+
+      {/* ---------- 01 / How it works ---------- */}
+      <Section n="01" title="How it works" id="how">
+        <div className="border-t border-[color:var(--rule)]">
+          {STEPS.map((s) => (
+            <div
+              key={s.n}
+              className="grid gap-x-6 gap-y-1 border-b border-[color:var(--border)] py-5 sm:grid-cols-[48px_minmax(0,20ch)_minmax(0,1fr)]"
+            >
+              <p className="stamp sm:pt-1">{s.n}</p>
+              <h3 className="text-[15px] font-medium tracking-tight">{s.title}</h3>
+              <p className="max-w-[68ch] text-[13.5px] leading-[1.55] text-muted-foreground">
+                {s.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* ---------- 02 / The founding team ---------- */}
+      <Section n="02" title="The founding team">
+        <p className="max-w-[68ch] text-[15px] leading-[1.65] text-muted-foreground">
+          Each agent has one job and hands its output to the next. Two run on a premium
+          model where quality compounds; the rest run on a fast one. No black box — you
+          watch every step.
+        </p>
+        <div className="seam-wall mt-6 sm:grid-cols-2 lg:grid-cols-5">
+          {PIPELINE.map((key, i) => (
+            <div key={key} className="flex flex-col gap-2 p-4">
+              <span className="stamp text-tide">T{i + 1}</span>
+              <p className="text-[14px] font-medium leading-tight tracking-tight">
+                {AGENTS[key].title}
+              </p>
+              <p className="truncate font-mono text-[11px] text-tide" title={AGENTS[key].model}>
+                {AGENTS[key].model}
+              </p>
+              <p className="text-[13px] leading-[1.55] text-muted-foreground">
+                {TEAM_BLURB[key]}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* ---------- 03 / The Agency ---------- */}
+      <Section n="03" title="The Agency">
+        <p className="max-w-[68ch] text-[15px] leading-[1.65] text-muted-foreground">
+          The founding team drafts the company. The Agency is what comes after: give a
+          live company a goal and an orchestrator staffs a handful of specialists, runs
+          them in parallel waves, and hands you what each one produced.
+        </p>
+        <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-3 border-y border-[color:var(--rule)] py-4">
+          <div>
+            <dt className="stamp">Specialists</dt>
+            <dd className="tnum mt-1 font-mono text-[12.5px] text-tide">{ROSTER.length}</dd>
+          </div>
+          <div>
+            <dt className="stamp">Divisions</dt>
+            <dd className="tnum mt-1 font-mono text-[12.5px] text-tide">{DIVISIONS.length}</dd>
+          </div>
+          <div>
+            <dt className="stamp">Dispatched from</dt>
+            <dd className="mt-1 font-mono text-[12.5px] text-tide">a live company</dd>
+          </div>
+        </dl>
+        <Link
+          href="/agency"
+          className="mt-6 inline-flex h-9 items-center gap-2 rounded-[3px] border border-[color:var(--rule)] px-4 text-[13.5px] font-semibold outline-none transition-colors duration-[120ms] hover:bg-accent"
+        >
+          See the roster →
+        </Link>
+      </Section>
+
+      {/* ---------- 04 / The honest fine print ---------- */}
+      <Section n="04" title="The honest fine print">
+        <div className="well overflow-hidden">
+          <p className="stamp border-b border-[color:var(--border)] px-5 py-2.5 text-sand">
+            AI draft · read before you act on it
+          </p>
+          <div className="grid sm:grid-cols-2">
+            {DISCLOSURES.map((d, i) => (
+              <div
+                key={d.title}
+                className="border-b border-[color:var(--border)] p-5 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(odd)]:border-r"
+              >
+                <h3 className="text-[14px] font-medium tracking-tight">
+                  <span className="stamp mr-2 align-middle">{`0${i + 1}`}</span>
+                  {d.title}
+                </h3>
+                <p className="mt-2 max-w-[68ch] text-[13.5px] leading-[1.55] text-muted-foreground">
+                  {d.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Section>
     </div>
   );
 }

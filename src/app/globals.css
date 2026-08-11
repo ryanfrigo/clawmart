@@ -44,6 +44,14 @@
   --color-tide: var(--tide);
   --color-kelp: var(--kelp);
   --color-sand: var(--sand);
+  /* The factory surface system: a recessed well, two structural line weights,
+     graph paper, and the stamped micro-label ink. */
+  --color-well: var(--well);
+  --color-rule: var(--rule);
+  --color-grid: var(--grid);
+  --color-label: var(--label);
+  --color-edge-light: var(--edge-light);
+  --color-edge-dark: var(--edge-dark);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -53,8 +61,12 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/* The light palette is the PRINT palette. `<html class="dark">` is the live
+   experience — but @media print re-declares `.dark, :root` together, and the
+   legacy /purchase/[token] receipt depends on printing dark-on-white, so this
+   block is load-bearing and must not be deleted. */
 :root {
-  --radius: 0.5rem;
+  --radius: 0.25rem;
   --background: oklch(0.97 0.005 85);
   --foreground: oklch(0.18 0.012 255);
   --card: oklch(1 0 0);
@@ -70,14 +82,20 @@
   --accent: oklch(0.94 0.006 85);
   --accent-foreground: oklch(0.22 0.012 255);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.88 0.008 255);
-  --input: oklch(0.88 0.008 255);
+  --border: oklch(0.84 0.008 255);
+  --input: oklch(0.84 0.008 255);
   --ring: oklch(0.62 0.19 34 / 55%);
   --lobster: oklch(0.62 0.19 34);
   --abyss: oklch(0.3 0.03 250);
   --tide: oklch(0.55 0.1 200);
   --kelp: oklch(0.6 0.14 152);
   --sand: oklch(0.75 0.12 80);
+  --well: oklch(0.955 0.004 252);
+  --rule: oklch(0.74 0.012 252);
+  --grid: oklch(0.74 0.012 252 / 18%);
+  --label: oklch(0.46 0.014 252);
+  --edge-light: oklch(1 0 0 / 70%);
+  --edge-dark: oklch(0 0 0 / 10%);
   --chart-1: oklch(0.62 0.19 34);
   --chart-2: oklch(0.55 0.1 200);
   --chart-3: oklch(0.6 0.14 152);
@@ -93,44 +111,63 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* Deep-ocean ink + lobster coral. The site lives in dark mode. */
+/* ---------------------------------------------------------------------------
+   THE FLOOR. Graphite, hue 252, chroma 0.012 — the ramp is deliberately
+   desaturated so lobster is the only saturated thing in the room. Six levels,
+   one of them recessed below the floor.
+   --------------------------------------------------------------------------- */
 .dark {
-  --background: oklch(0.146 0.016 258);
-  --foreground: oklch(0.94 0.008 85);
-  --card: oklch(0.176 0.017 256);
-  --card-foreground: oklch(0.94 0.008 85);
-  --popover: oklch(0.2 0.017 256);
-  --popover-foreground: oklch(0.94 0.008 85);
+  color-scheme: dark;
+
+  --well: oklch(0.115 0.012 252); /* RECESSED — cut into the plate */
+  --abyss: var(--well); /* the brand near-black IS the well */
+  --background: oklch(0.152 0.013 252); /* FLOOR */
+  --card: oklch(0.196 0.012 252); /* PLATE — opaque, always */
+  --muted: oklch(0.228 0.012 252); /* RAIL — headers, tab strips */
+  --secondary: oklch(0.228 0.012 252);
+  --popover: oklch(0.238 0.013 252); /* floating only: menus, toasts */
+  --accent: oklch(0.262 0.012 252); /* hover / selected cell */
+
+  --foreground: oklch(0.945 0.008 85);
+  --card-foreground: oklch(0.945 0.008 85);
+  --popover-foreground: oklch(0.945 0.008 85);
+  --secondary-foreground: oklch(0.945 0.008 85);
+  --accent-foreground: oklch(0.945 0.008 85);
+  --muted-foreground: oklch(0.685 0.014 252);
+  /* Mono micro-labels ONLY. 4.63:1 on --card, 4.98:1 on --background —
+     legal there, NOT on --muted/--accent grounds (4.30:1). */
+  --label: oklch(0.6 0.016 252);
+
+  /* Two structural line weights plus one texture. */
+  --border: oklch(0.85 0.02 250 / 12%); /* hairline INSIDE a plate */
+  --rule: oklch(0.85 0.02 250 / 24%); /* structural: plate edges, heads */
+  --input: oklch(0.85 0.02 250 / 24%); /* a slot edge — 3.5:1, AA 1.4.11 */
+  --grid: oklch(0.85 0.02 250 / 5%); /* 24px graph paper, wells only */
+  --edge-light: oklch(1 0 0 / 5%); /* light on the milled top edge */
+  --edge-dark: oklch(0 0 0 / 45%); /* hard 1px bottom, zero blur */
+  --ring: oklch(0.7 0.19 34 / 60%);
+
   --primary: oklch(0.7 0.19 34);
   --primary-foreground: oklch(0.16 0.045 34);
-  --secondary: oklch(0.225 0.017 254);
-  --secondary-foreground: oklch(0.94 0.008 85);
-  --muted: oklch(0.205 0.015 254);
-  --muted-foreground: oklch(0.65 0.015 252);
-  --accent: oklch(0.235 0.02 254);
-  --accent-foreground: oklch(0.94 0.008 85);
-  --destructive: oklch(0.66 0.2 25);
-  --border: oklch(0.94 0.01 250 / 9%);
-  --input: oklch(0.94 0.01 250 / 13%);
-  --ring: oklch(0.7 0.19 34 / 55%);
   --lobster: oklch(0.7 0.19 34);
-  --abyss: oklch(0.12 0.02 255);
-  --tide: oklch(0.72 0.1 200);
-  --kelp: oklch(0.75 0.15 152);
+  --kelp: oklch(0.77 0.15 152);
+  --tide: oklch(0.74 0.1 205);
   --sand: oklch(0.83 0.13 82);
+  --destructive: oklch(0.66 0.2 25);
+
   --chart-1: oklch(0.7 0.19 34);
-  --chart-2: oklch(0.72 0.1 200);
-  --chart-3: oklch(0.75 0.15 152);
+  --chart-2: oklch(0.74 0.1 205);
+  --chart-3: oklch(0.77 0.15 152);
   --chart-4: oklch(0.83 0.13 82);
   --chart-5: oklch(0.65 0.05 255);
-  --sidebar: oklch(0.176 0.017 256);
-  --sidebar-foreground: oklch(0.94 0.008 85);
+  --sidebar: var(--card);
+  --sidebar-foreground: oklch(0.945 0.008 85);
   --sidebar-primary: oklch(0.7 0.19 34);
   --sidebar-primary-foreground: oklch(0.16 0.045 34);
-  --sidebar-accent: oklch(0.235 0.02 254);
-  --sidebar-accent-foreground: oklch(0.94 0.008 85);
-  --sidebar-border: oklch(0.94 0.01 250 / 9%);
-  --sidebar-ring: oklch(0.7 0.19 34 / 55%);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: oklch(0.945 0.008 85);
+  --sidebar-border: var(--border);
+  --sidebar-ring: oklch(0.7 0.19 34 / 60%);
 }
 
 @layer base {
@@ -143,14 +180,135 @@
   ::selection {
     background: oklch(0.7 0.19 34 / 30%);
   }
+  /* Focus is never removed. One weight everywhere: 1px lobster edge plus a
+     3px lobster wash, so it reads on plates, wells and rails alike. */
+  :focus-visible {
+    outline: none;
+    border-color: var(--lobster);
+    box-shadow:
+      0 0 0 1px var(--lobster),
+      0 0 0 4px oklch(0.7 0.19 34 / 18%);
+  }
 }
 
-/* ---------- Motion ---------- */
+/* ---------------------------------------------------------------------------
+   THE FIVE PRIMITIVES. This is the entire shared surface vocabulary — every
+   page consumes these as class names rather than inventing its own card.
+   --------------------------------------------------------------------------- */
 
+@layer components {
+  /* A PLATE: opaque, bevelled, sitting on the floor. */
+  .plate {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow:
+      inset 0 1px 0 var(--edge-light),
+      0 1px 0 var(--edge-dark);
+  }
+
+  /* A WELL: cut into the plate. Inputs, logs, code, the graph canvas. */
+  .well {
+    background: var(--well);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 1px);
+    box-shadow: inset 0 1px 2px oklch(0 0 0 / 50%);
+  }
+
+  /* A SEAM WALL: bolted cells with dark 1px seams and one outer bevel.
+     Grids of peers (the 35 specialists, the founding five) use this. */
+  .seam-wall {
+    display: grid;
+    gap: 1px;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow:
+      inset 0 1px 0 var(--edge-light),
+      0 1px 0 var(--edge-dark);
+    overflow: hidden;
+  }
+  .seam-wall > * {
+    background: var(--card);
+  }
+
+  /* A STAMP: a mono micro-label. It always names a value sitting beneath it. */
+  .stamp {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.4;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--label);
+  }
+  /* The larger stamp — a region label above a block of data. */
+  .stamp-lg {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.4;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--label);
+  }
+  /* Editorial kicker: sans, because it is not a value the system knows. */
+  .kicker {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  /* GRAPH PAPER: wells, the hero figure, the sign-in ground. Nowhere else. */
+  .grid-paper {
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Every number set in sans, always. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Display sizes — three, and no more. */
+  .d1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    /* Sized for a 7-of-12 column, not the full page: at 1440 this lands near
+       68px, where the two-clause headline breaks over three lines instead of
+       four and the italic clause still reads as one gesture. */
+    font-size: clamp(2.6rem, 4.9vw, 4.25rem);
+    line-height: 1;
+    letter-spacing: -0.025em;
+    margin-left: -0.03em;
+  }
+  .d2 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 2.5rem;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+  .d3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 1.5rem;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* ---------- Motion. Four animations exist; this file defines them. ---------- */
+
+/* Feed arrival — the NEWEST row only. Convex live queries re-render the whole
+   list, so a stagger cascade on every refetch is what makes real-time UI janky. */
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -158,65 +316,93 @@
   }
 }
 
-@keyframes sonar-sweep {
+/* Parts dropping onto a line: the plan stamping itself in, wave by wave. */
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: none;
   }
 }
 
-@keyframes sonar-ring {
-  0% {
-    transform: scale(0.4);
-    opacity: 0.5;
-  }
+/* The only infinite animation in the product: compute is happening right now. */
+@keyframes heat {
+  0%,
   100% {
-    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Handoff travelling an edge into a running task. Bounded to <=3 concurrent
+   edges by the engine's MAX_CONCURRENT_TASKS. */
+@keyframes flow {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
+/* The orchestrator drafting a plan: one line sweeping the empty stage. */
+@keyframes scan {
+  0% {
+    transform: translateX(0);
     opacity: 0;
   }
-}
-
-@keyframes shimmer {
-  from {
-    background-position: 200% 0;
+  12% {
+    opacity: 1;
   }
-  to {
-    background-position: -200% 0;
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(var(--scan-distance, 240px));
+    opacity: 0;
   }
 }
 
 .anim-rise {
-  animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: rise 180ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
-.sonar-sweep {
-  animation: sonar-sweep 2.4s linear infinite;
+.anim-stamp {
+  animation: stamp-in 120ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
-.sonar-ring {
-  animation: sonar-ring 2.4s ease-out infinite;
+.anim-heat {
+  animation: heat 2s ease-in-out infinite;
 }
 
-.shimmer-line {
-  background: linear-gradient(
-    90deg,
-    oklch(0.94 0.01 250 / 6%) 25%,
-    oklch(0.94 0.01 250 / 14%) 50%,
-    oklch(0.94 0.01 250 / 6%) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s linear infinite;
+.anim-scan {
+  animation: scan 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.flow {
+  stroke-dasharray: 6 8;
+  animation: flow 1.4s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .anim-rise,
-  .sonar-sweep,
-  .sonar-ring,
-  .shimmer-line {
-    animation: none;
+  .anim-stamp,
+  .anim-heat,
+  .anim-scan,
+  .flow {
+    animation: none !important;
   }
-  .anim-rise {
+  .anim-rise,
+  .anim-stamp,
+  .anim-heat {
     opacity: 1;
     transform: none;
+  }
+  /* State must survive: a flowing edge stays a lobster dash, just a still one. */
+  .flow {
+    stroke-dasharray: 6 8;
   }
 }
 
@@ -244,9 +430,21 @@
     --kelp: oklch(0.5 0.13 152);
     --sand: oklch(0.6 0.12 82);
     --tide: oklch(0.5 0.09 200);
+    --well: oklch(0.97 0.002 85);
+    --abyss: oklch(0.97 0.002 85);
+    --rule: oklch(0.7 0.008 255);
+    --grid: transparent;
+    --label: oklch(0.42 0.01 255);
+    --edge-light: transparent;
+    --edge-dark: transparent;
   }
   body {
     background: white !important;
+  }
+  .plate,
+  .well,
+  .seam-wall {
+    box-shadow: none !important;
   }
   .print-expand {
     max-height: none !important;

@@ -17,9 +17,7 @@ import { SKILLS_PATH, SUPPORT_EMAIL } from "@/components/site/constants";
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative overflow-hidden">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-32 left-1/2 h-[360px] w-[640px] -translate-x-1/2 rounded-full bg-lobster/[0.06] blur-[120px]" />
-      </div>
+      
       <div className="relative mx-auto max-w-2xl px-5 py-16 sm:px-6 sm:py-24">
         {children}
       </div>
@@ -34,10 +32,8 @@ export function PurchaseView({ token }: { token: string }) {
   if (purchase === undefined) {
     return (
       <Shell>
-        <div className="space-y-4">
-          <div className="shimmer-line h-3 w-28 rounded" />
-          <div className="shimmer-line h-10 w-3/4 rounded" />
-          <div className="shimmer-line h-24 w-full rounded-xl" />
+        <div className="well flex h-40 items-center justify-center">
+          <p className="stamp">Reading receipt — —</p>
         </div>
       </Shell>
     );
@@ -60,7 +56,7 @@ export function PurchaseView({ token }: { token: string }) {
         </p>
         <Link
           href="/"
-          className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="mt-8 inline-flex items-center gap-2 rounded-[3px] bg-primary px-5 py-2.5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           Back to clawmart.co
           <ArrowRight className="size-4" />
@@ -93,7 +89,7 @@ export function PurchaseView({ token }: { token: string }) {
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center gap-2 rounded-[3px] bg-primary px-5 py-2.5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Back to clawmart.co
             <ArrowRight className="size-4" />
@@ -120,7 +116,7 @@ export function PurchaseView({ token }: { token: string }) {
           Hang tight — this can take up to a minute for some payment methods.
           This page updates on its own the moment it clears; no need to refresh.
         </p>
-        <div className="mt-8 rounded-2xl border border-border bg-card/40 p-5">
+        <div className="mt-8 plate p-5">
           <p className="text-[13px] leading-relaxed text-muted-foreground">
             Bookmark this page now. It&apos;s your permanent link to{" "}
             <span className="text-foreground">{title}</span> — your receipt and
@@ -149,10 +145,10 @@ export function PurchaseView({ token }: { token: string }) {
       </p>
 
       {/* download */}
-      <div className="mt-8 rounded-2xl border border-lobster/30 bg-card/60 p-6">
+      <div className="mt-8 plate p-6">
         <a
           href={`/api/download/${token}`}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-[14.5px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[3px] bg-primary px-6 text-[14.5px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <Download className="size-4.5" aria-hidden="true" />
           Download {bundle ? "all packs" : "the pack"} (.zip)

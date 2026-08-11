@@ -1,7 +1,7 @@
 /**
  * Company Studio — companies, builds, and the read surface for the UI.
  *
- * Public surface (Clerk-auth'd unless noted):
+ * Public surface (signed-in unless noted):
  * - api.companies.create        create a company from an idea and start the build
  * - api.companies.rebuild       re-run a finished/failed build
  * - api.companies.listMine      dashboard list
@@ -14,6 +14,8 @@
  */
 
 import { v, ConvexError } from "convex/values";
+import type { Auth } from "convex/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import {
   mutation,
   query,
@@ -25,8 +27,9 @@ import {
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { PIPELINE, AGENTS, slugify, slugSuffix, type AgentKey } from "./lib/agents";
+// Pure module — the homepage renders this same number, so there is one source.
+import { MAX_COMPANIES_PER_USER } from "./lib/roster";
 
-const MAX_COMPANIES_PER_USER = 3;
 const IDEA_MIN = 20;
 const IDEA_MAX = 2000;
 
@@ -35,18 +38,29 @@ const BUILD_WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_BUILDS_PER_DAY_GLOBAL = 40;
 const MAX_BUILDS_PER_DAY_USER = 10;
 
-async function requireIdentity(ctx: {
-  auth: {
-    getUserIdentity(): Promise<{ subject: string; email?: string } | null>;
-  };
-}) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new ConvexError("unauthenticated");
-  return identity;
+/**
+ * The signed-in owner key, or throw.
+ *
+ * `getAuthUserId` — never `identity.subject`. Convex Auth mints the JWT `sub`
+ * claim as "<userId>|<sessionId>" (convex/auth.ts), so the raw subject rotates
+ * on every new session; storing it in ownerId would strand a user's companies
+ * the moment they signed out. getAuthUserId returns the durable Id<"users">.
+ */
+async function requireUser(ctx: { auth: Auth }) {
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) throw new ConvexError("unauthenticated");
+  return userId;
 }
 
-async function requireUser(ctx: Parameters<typeof requireIdentity>[0]) {
-  return (await requireIdentity(ctx)).subject;
+/**
+ * Owner key plus the address the morning digest writes to. Email lives on the
+ * user doc (Convex Auth's `users` table), not on the token, so this needs db —
+ * every caller is a mutation, and one extra read per create/rebuild is cheap.
+ */
+async function requireIdentity(ctx: QueryCtx) {
+  const subject = await requireUser(ctx);
+  const user = await ctx.db.get(subject);
+  return { subject, email: user?.email };
 }
 
 /** Same sliding-window pattern as purchases.createPending. */
@@ -226,8 +240,8 @@ export const create = mutation({
     const slug = await uniqueSlug(ctx, `co-${slugSuffix()}${slugSuffix()}`);
     const companyId = await ctx.db.insert("companies", {
       ownerId,
-      // For the morning digest. Present only when the Clerk JWT template
-      // exposes the email claim; the digest quietly skips companies without.
+      // For the morning digest. Absent for an account with no email on file;
+      // the digest quietly skips companies without one.
       ownerEmail:
         typeof identity.email === "string" ? identity.email : undefined,
       slug,
@@ -254,7 +268,7 @@ export const rebuild = mutation({
     }
     if (company.status === "building") throw new ConvexError("build_in_progress");
     // Keep the digest address current — ownerEmail is otherwise a frozen
-    // snapshot from creation, and users do change their Clerk email.
+    // snapshot from creation, and users do change their address.
     if (typeof identity.email === "string" && identity.email !== company.ownerEmail) {
       await ctx.db.patch(args.companyId, { ownerEmail: identity.email });
     }
@@ -270,11 +284,11 @@ export const rebuild = mutation({
 export const listMine = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const ownerId = await getAuthUserId(ctx);
+    if (ownerId === null) return [];
     const rows = await ctx.db
       .query("companies")
-      .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
+      .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
       .collect();
     const sorted = rows.sort((a, b) => b.createdAt - a.createdAt);
     return Promise.all(
@@ -297,10 +311,10 @@ export const listMine = query({
 export const get = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    const ownerId = await getAuthUserId(ctx);
+    if (ownerId === null) return null;
     const company = await ctx.db.get(args.companyId);
-    if (!company || company.ownerId !== identity.subject) return null;
+    if (!company || company.ownerId !== ownerId) return null;
     return company;
   },
 });
@@ -309,10 +323,10 @@ export const get = query({
 export const buildState = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    const ownerId = await getAuthUserId(ctx);
+    if (ownerId === null) return null;
     const company = await ctx.db.get(args.companyId);
-    if (!company || company.ownerId !== identity.subject) return null;
+    if (!company || company.ownerId !== ownerId) return null;
 
     const runs = await ctx.db
       .query("agentRuns")
@@ -794,10 +808,10 @@ const SIGNUPS_MAX = 100;
 export const signups = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    const ownerId = await getAuthUserId(ctx);
+    if (ownerId === null) return null;
     const company = await ctx.db.get(args.companyId);
-    if (!company || company.ownerId !== identity.subject) return null;
+    if (!company || company.ownerId !== ownerId) return null;
 
     // Collapse the migrated co:<id> and legacy c:<slug> source keys by email:
     // someone who joined both before and after the 2026-07-13 key change is

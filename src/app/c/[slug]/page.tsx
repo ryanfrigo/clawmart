@@ -112,9 +112,15 @@ export async function generateViewport({
 // strip at the very bottom. The attribution + "not real yet" line must stay.
 function ConceptFooter() {
   return (
-    <footer className="mt-auto border-t border-border/50">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-1.5 px-5 py-5 text-center sm:flex-row sm:gap-6 sm:px-6 sm:text-left">
-        <p className="text-[12px] leading-relaxed text-muted-foreground/80">
+    <footer className="mt-auto border-t border-border">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-6 sm:flex-row sm:items-center sm:gap-6 sm:px-6">
+        {/* A designed label, not an apologetic footnote. The stamp is sand —
+            the same "degraded, not broken" register the studio uses for a
+            draft — and it is never removed to tidy up a page. */}
+        <span className="inline-flex shrink-0 items-center self-start rounded-[3px] border border-sand/45 px-2 py-0.5 font-mono text-[10px] uppercase leading-[1.4] tracking-[0.16em] text-sand">
+          AI draft
+        </span>
+        <p className="text-[12px] leading-relaxed text-muted-foreground">
           An AI-drafted concept company — built with{" "}
           <a
             href="https://clawmart.co"
@@ -124,7 +130,7 @@ function ConceptFooter() {
           </a>
           .
         </p>
-        <p className="text-[12px] leading-relaxed text-muted-foreground/60">
+        <p className="text-[12px] leading-relaxed text-muted-foreground sm:ml-auto sm:text-right">
           Not a real product yet. Join the waitlist to show demand.
         </p>
       </div>
@@ -150,7 +156,7 @@ export default async function CompanyPage({
     return (
       <div className="flex min-h-screen flex-col bg-background">
         <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-5 py-24 text-center sm:px-6">
-          <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-lobster">
+          <p className="stamp">
             {company.status === "failed" ? "Build incomplete" : "Building"}
           </p>
           <h1 className="mt-4 font-display text-[clamp(2.2rem,6vw,3.6rem)] leading-tight tracking-tight">
@@ -192,13 +198,14 @@ export default async function CompanyPage({
       style={{ "--co-primary": primary, "--co-accent": accent } as React.CSSProperties}
     >
       {/* ---------- Hero ---------- */}
-      <section className="relative overflow-hidden border-b border-border/60">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div
-            className="absolute -top-40 left-1/2 h-[480px] w-[860px] -translate-x-1/2 rounded-full blur-[130px]"
-            style={{ backgroundColor: primary, opacity: 0.1 }}
-          />
-        </div>
+      <section className="relative overflow-hidden border-b border-border">
+        {/* The brand states itself as a 2px rule across the top, not a blurred
+            glow: a glow is clawmart's own tell, and this page is not clawmart. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-0.5"
+          style={{ backgroundColor: primary }}
+        />
         {/* No site nav above this hero — it carries its own top breathing room. */}
         <div className="relative mx-auto max-w-3xl px-5 pb-20 pt-28 text-center sm:px-6 sm:pt-36">
           <p className="font-mono text-[12px] uppercase tracking-[0.22em]" style={{ color: accent }}>
@@ -220,11 +227,11 @@ export default async function CompanyPage({
 
       {/* ---------- Features ---------- */}
       {features.length > 0 && (
-        <section className="border-b border-border/60 py-20 sm:py-24">
+        <section className="border-b border-border py-20 sm:py-24">
           <div className="mx-auto max-w-6xl px-5 sm:px-6">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {features.map((f, i) => (
-                <div key={i} className="rounded-2xl border border-border bg-card/40 p-6">
+                <div key={i} className="rounded-lg border border-border bg-card p-6">
                   <div
                     aria-hidden="true"
                     className="size-2 rounded-full"
@@ -247,7 +254,7 @@ export default async function CompanyPage({
 
       {/* ---------- How it works ---------- */}
       {how.length > 0 && (
-        <section className="border-b border-border/60 py-20 sm:py-24">
+        <section className="border-b border-border py-20 sm:py-24">
           <div className="mx-auto max-w-5xl px-5 sm:px-6">
             <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
               How it works
@@ -278,7 +285,7 @@ export default async function CompanyPage({
 
       {/* ---------- Pricing ---------- */}
       {pricing.length > 0 && (
-        <section className="border-b border-border/60 py-20 sm:py-24">
+        <section className="border-b border-border py-20 sm:py-24">
           <div className="mx-auto max-w-6xl px-5 sm:px-6">
             <h2 className="text-center font-display text-4xl tracking-tight sm:text-5xl">Pricing</h2>
             <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -287,7 +294,7 @@ export default async function CompanyPage({
                 return (
                   <div
                     key={i}
-                    className="rounded-2xl border bg-card/40 p-6"
+                    className="rounded-lg border bg-card p-6"
                     style={
                       highlighted
                         ? { borderColor: accent, boxShadow: `0 0 0 1px ${accent}` }
@@ -327,7 +334,7 @@ export default async function CompanyPage({
 
       {/* ---------- FAQ ---------- */}
       {faq.length > 0 && (
-        <section className="border-b border-border/60 py-20 sm:py-24">
+        <section className="border-b border-border py-20 sm:py-24">
           <div className="mx-auto max-w-3xl px-5 sm:px-6">
             <h2 className="font-display text-4xl tracking-tight sm:text-5xl">FAQ</h2>
             <div className="mt-8 space-y-8">

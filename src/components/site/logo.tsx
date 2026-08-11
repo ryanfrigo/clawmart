@@ -12,7 +12,8 @@ export function ClawMark({ className }: { className?: string }) {
       aria-hidden="true"
       className={cn("h-7 w-7", className)}
     >
-      <rect width="32" height="32" rx="8" className="fill-lobster" />
+      {/* rx 5 not 8: a milled corner, matching the 4px plate radius. */}
+      <rect width="32" height="32" rx="5" className="fill-lobster" />
       {/* pincer: a bitten disc opening to the right */}
       <path
         d="M16 16 L24.7 11.6 A9.5 9.5 0 1 0 24.7 20.4 Z"

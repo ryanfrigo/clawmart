@@ -1,19 +1,21 @@
 /**
- * Clerk -> Convex auth. CLERK_JWT_ISSUER_DOMAIN is set in Convex env (the
- * Clerk Frontend API URL, e.g. https://xxx.clerk.accounts.dev); the matching
- * "convex" JWT template lives in the Clerk instance.
+ * Which issuers this deployment trusts for `ctx.auth`.
+ *
+ * Convex Auth signs its own tokens inside this deployment, so the issuer is the
+ * deployment's own site URL. CONVEX_SITE_URL is injected by Convex — there is
+ * no key to provision and no third party to be down, which is the whole reason
+ * this replaced a hosted provider.
+ *
+ * Adding an external provider later means appending to this array, not
+ * replacing it: Convex accepts a token from any listed issuer.
  */
 const authConfig = {
-  // A deployment without the Clerk env var still pushes cleanly — the guest
-  // packs/checkout backend must never depend on Studio auth being configured.
-  providers: process.env.CLERK_JWT_ISSUER_DOMAIN
-    ? [
-        {
-          domain: process.env.CLERK_JWT_ISSUER_DOMAIN,
-          applicationID: "convex",
-        },
-      ]
-    : [],
+  providers: [
+    {
+      domain: process.env.CONVEX_SITE_URL,
+      applicationID: "convex",
+    },
+  ],
 };
 
 export default authConfig;

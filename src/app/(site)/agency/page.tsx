@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { StaffingFigure } from "@/components/site/pipeline-figure";
+import { Button } from "@/components/ui/button";
 import {
   agentsByDivision,
   DIVISIONS,
@@ -26,98 +27,158 @@ const DIVISION_COPY: Record<Division, string> = {
   operations: "Synthesis, cost models, compliance flags, support, and documentation.",
 };
 
-function AgentCard({ agent }: { agent: RosterAgent }) {
+/** A stamped capability tag. Tide is "a fact the router knows"; kelp is a
+ *  delivered artifact kind. Neither is lobster — nothing here is executing. */
+function Tag({
+  tone,
+  title,
+  children,
+}: {
+  tone: "tide" | "kelp";
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex flex-col rounded-xl border border-border bg-card/40 p-4">
-      <h3 className="text-[14px] font-medium leading-tight text-foreground">{agent.name}</h3>
-      <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-muted-foreground">
-        {agent.blurb}
-      </p>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {agent.tier === "premium" && (
-          <span
-            title="Routed to a stronger model when the mission's strategy allows it."
-            className="inline-flex items-center rounded-full border border-lobster/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-lobster"
-          >
-            Premium
-          </span>
-        )}
-        {agent.codeCapable && (
-          <span
-            title="Delivers code-level output — schemas, interfaces, and working code for the critical path."
-            className="inline-flex items-center rounded-full border border-kelp/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-kelp"
-          >
-            Code
-          </span>
-        )}
+    <span
+      title={title}
+      className={
+        tone === "tide"
+          ? "inline-flex items-center rounded-[3px] border border-tide/45 px-1.5 py-0.5 font-mono text-[10px] uppercase leading-[1.4] tracking-[0.16em] text-tide"
+          : "inline-flex items-center rounded-[3px] border border-kelp/45 px-1.5 py-0.5 font-mono text-[10px] uppercase leading-[1.4] tracking-[0.16em] text-kelp"
+      }
+    >
+      {children}
+    </span>
+  );
+}
+
+function AgentCell({ agent }: { agent: RosterAgent }) {
+  return (
+    <div className="flex min-w-0 flex-col p-4">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-[14px] font-medium leading-tight text-foreground">
+          {agent.name}
+        </h3>
+        <div className="flex shrink-0 gap-1">
+          {agent.tier === "premium" && (
+            <Tag
+              tone="tide"
+              title="Routed to a stronger model when the mission's strategy allows it."
+            >
+              Premium
+            </Tag>
+          )}
+          {agent.codeCapable && (
+            <Tag
+              tone="kelp"
+              title="Delivers code-level output — schemas, interfaces, and working code for the critical path."
+            >
+              Code
+            </Tag>
+          )}
+        </div>
       </div>
+      <p className="mt-2 text-[13px] leading-[1.55] text-muted-foreground">{agent.blurb}</p>
+      <p className="mt-3 font-mono text-[11px] text-[color:var(--label)]">{agent.key}</p>
     </div>
   );
 }
 
 export default function AgencyPage() {
   return (
-    <div className="mx-auto max-w-5xl px-5 py-16 sm:px-6 sm:py-24">
-      <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-lobster">The Agency</p>
-      <h1 className="mt-3 font-display text-[clamp(2.5rem,6vw,4rem)] leading-[1.05] tracking-tight">
-        The army behind your company.
-      </h1>
-      <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
-        A founding team of five agents drafts a company in about a minute. The Agency is
-        what comes after: {ROSTER.length} specialists across {DIVISIONS.length} divisions.
-        Give a live company a goal and an orchestrator staffs a handful of them, runs them
-        in parallel, and hands you what each one produced.
-      </p>
-      <p className="mt-4 max-w-2xl text-[13.5px] leading-relaxed text-muted-foreground/80">
-        These are AI agents. They produce drafts — plans, specs, copy, code — reviewed by
-        you, not finished work, and not business, legal, or financial advice. Nothing here
-        ships on its own.
-      </p>
+    <div>
+      <header className="mx-auto max-w-[1200px] px-5 pb-12 pt-12 sm:px-8 sm:pt-16">
+        <div className="grid gap-10 lg:grid-cols-[7fr_5fr] lg:items-start lg:gap-12">
+          <div className="min-w-0">
+            <p className="stamp">The Agency / Specialist roster</p>
+            <h1 className="d1 mt-5 text-balance">The army behind your company.</h1>
+            <p className="mt-6 max-w-[62ch] text-[17px] leading-[1.6] text-muted-foreground">
+              A founding team of five agents drafts a company in about a minute. The
+              Agency is what comes after: {ROSTER.length} specialists across{" "}
+              {DIVISIONS.length} divisions. Give a live company a goal and an orchestrator
+              staffs a handful of them, runs them in parallel, and hands you what each one
+              produced.
+            </p>
+            <p className="mt-4 max-w-[68ch] text-[13.5px] leading-[1.55] text-muted-foreground">
+              These are AI agents. They produce drafts — plans, specs, copy, code —
+              reviewed by you, not finished work, and not business, legal, or financial
+              advice. Nothing here ships on its own.
+            </p>
 
-      <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-6 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-        <span className="text-lobster">Premium</span>
-        <span className="normal-case tracking-normal">
-          runs on a stronger model when the mission&apos;s strategy allows
-        </span>
-        <span className="text-kelp">Code</span>
-        <span className="normal-case tracking-normal">
-          delivers code-level output: schemas, interfaces, working code
-        </span>
-      </div>
+            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-[color:var(--rule)] pt-5">
+              <div className="flex items-center gap-2">
+                <Tag tone="tide" title="Routed to a stronger model when the mission's strategy allows it.">
+                  Premium
+                </Tag>
+                <span className="text-[12.5px] text-muted-foreground">
+                  runs on a stronger model when the strategy allows
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Tag tone="kelp" title="Delivers code-level output.">
+                  Code
+                </Tag>
+                <span className="text-[12.5px] text-muted-foreground">
+                  delivers schemas, interfaces, working code
+                </span>
+              </div>
+            </div>
+          </div>
 
-      {DIVISIONS.map((division) => {
+          <div className="min-w-0 lg:pt-2">
+            <StaffingFigure />
+          </div>
+        </div>
+      </header>
+
+      {DIVISIONS.map((division, i) => {
         const agents = agentsByDivision(division);
         return (
-          <section key={division} className="mt-14">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 className="font-display text-3xl capitalize tracking-tight">{division}</h2>
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                {agents.length} specialists
-              </p>
-            </div>
-            <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
-              {DIVISION_COPY[division]}
-            </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {agents.map((agent) => (
-                <AgentCard key={agent.key} agent={agent} />
-              ))}
+          <section
+            key={division}
+            className="border-t border-[color:var(--rule)] py-12 sm:py-14"
+          >
+            <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+              <div className="grid gap-x-8 gap-y-4 lg:grid-cols-[72px_minmax(0,1fr)]">
+                <p className="stamp lg:pt-1">{String(i + 1).padStart(2, "0")}/</p>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--rule)] pb-2">
+                    <h2 className="stamp-lg text-foreground">{division}</h2>
+                    <p className="stamp">
+                      {agents.length} {agents.length === 1 ? "specialist" : "specialists"}
+                    </p>
+                  </div>
+                  <p className="mt-3 max-w-[68ch] text-[13.5px] leading-[1.55] text-muted-foreground">
+                    {DIVISION_COPY[division]}
+                  </p>
+                  <div className="seam-wall mt-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {agents.map((agent) => (
+                      <AgentCell key={agent.key} agent={agent} />
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         );
       })}
 
-      <p className="mt-16 border-t border-border pt-6 text-[13.5px] leading-relaxed text-muted-foreground">
-        Missions are dispatched from a company&apos;s build page once its first build is
-        live. Start there.
-      </p>
-      <Link
-        href="/"
-        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-      >
-        Start your company
-        <ArrowRight className="size-4" />
-      </Link>
+      <section className="border-t border-[color:var(--rule)] py-14">
+        <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+          <div className="grid gap-x-8 gap-y-4 lg:grid-cols-[72px_minmax(0,1fr)]">
+            <p className="stamp lg:pt-1">→/</p>
+            <div className="min-w-0">
+              <p className="max-w-[68ch] text-[13.5px] leading-[1.55] text-muted-foreground">
+                Missions are dispatched from a company&apos;s build page once its first
+                build is live. Start there.
+              </p>
+              <Button asChild size="lg" className="mt-5">
+                <Link href="/">Start your company →</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

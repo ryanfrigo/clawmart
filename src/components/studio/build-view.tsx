@@ -9,22 +9,14 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Boxes,
-  Check,
-  Clock,
-  Compass,
   ExternalLink,
-  LayoutTemplate,
   Link2,
-  Loader2,
-  Megaphone,
-  Palette,
   RefreshCw,
   Trash2,
-  Users,
-  X,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { AGENTS, PIPELINE } from "../../../convex/lib/agents";
 import { StatusBadge } from "@/components/studio/status-badge";
 import { MissionPanel } from "@/components/studio/mission-panel";
 import {
@@ -34,19 +26,13 @@ import {
   PlanView,
   ProductView,
 } from "@/components/studio/asset-views";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const AGENTS = [
-  { key: "strategist", title: "Strategist", icon: Compass, blurb: "Positioning · ICP · model" },
-  { key: "brand", title: "Brand Designer", icon: Palette, blurb: "Name · voice · palette" },
-  { key: "product", title: "Product Lead", icon: Boxes, blurb: "Features · MVP · pricing" },
-  { key: "landing", title: "Landing Page Engineer", icon: LayoutTemplate, blurb: "The public page" },
-  { key: "marketing", title: "Marketing Lead", icon: Megaphone, blurb: "Launch kit" },
-] as const;
-
 const AGENT_TITLE: Record<string, string> = {
-  ...Object.fromEntries(AGENTS.map((a) => [a.key, a.title])),
+  ...Object.fromEntries(PIPELINE.map((k) => [k, AGENTS[k].title])),
   ceo: "CEO", // daily check-ins land in the feed after the build
+  agency: "Agency", // mission events share the company feed
 };
 
 const TABS = [
@@ -83,55 +69,137 @@ type RunLike = {
 
 type EventLike = { agentKey: string; kind: "status" | "output"; text: string; ts: number };
 
-/* ---------------- pipeline ---------------- */
+const RUN_TONE: Record<string, { led: string; word: string }> = {
+  done: { led: "bg-kelp", word: "text-kelp" },
+  running: { led: "bg-lobster anim-heat", word: "text-lobster" },
+  failed: { led: "bg-destructive", word: "text-destructive" },
+  queued: { led: "bg-sand/60", word: "text-sand" },
+};
 
-function RunIcon({ status }: { status: string }) {
-  if (status === "done") return <Check className="size-4 text-kelp" aria-hidden="true" />;
-  if (status === "running")
-    return <Loader2 className="size-4 animate-spin text-lobster" aria-hidden="true" />;
-  if (status === "failed") return <X className="size-4 text-destructive" aria-hidden="true" />;
-  return <Clock className="size-4 text-muted-foreground/40" aria-hidden="true" />;
+/* ---------------- shared chrome ---------------- */
+
+/** A plate with a 30px rail header. Every panel in the console is one of these. */
+function Panel({
+  title,
+  aside,
+  children,
+  className,
+}: {
+  title: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("plate overflow-hidden", className)}>
+      <div className="flex h-[30px] items-center justify-between gap-3 border-b border-[color:var(--rule)] bg-muted px-3">
+        <p className="stamp">{title}</p>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
 }
+
+/**
+ * The elapsed clock, isolated in its own component so its 1s tick can never
+ * re-render the feed or the pipeline around it.
+ */
+function Elapsed({ since }: { since: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const s = Math.max(0, Math.floor((now - since) / 1000));
+  return (
+    <>
+      {String(Math.floor(s / 60)).padStart(2, "0")}:{String(s % 60).padStart(2, "0")}
+    </>
+  );
+}
+
+/* ---------------- telemetry ---------------- */
+
+function TelemetryStrip({
+  slug,
+  status,
+  doneSteps,
+  assetCount,
+  waitlistCount,
+  building,
+  since,
+}: {
+  slug: string;
+  status: string;
+  doneSteps: number;
+  assetCount: number;
+  waitlistCount: number;
+  building: boolean;
+  since: number;
+}) {
+  const cells: Array<[string, React.ReactNode]> = [
+    ["Company", slug],
+    ["Status", status],
+    ["Step", `${doneSteps}/${PIPELINE.length}`],
+    ["Assets", `${assetCount}/${TABS.length}`],
+    ["Waitlist", waitlistCount > 1000 ? "1,000+" : String(waitlistCount)],
+    ["Clock", building ? <Elapsed key="c" since={since} /> : "— —"],
+  ];
+  return (
+    <div className="well grid-paper -mx-5 flex flex-wrap rounded-none border-x-0 sm:-mx-6">
+      {cells.map(([k, v], i) => (
+        <div
+          key={k}
+          className={cn(
+            "flex min-w-0 flex-1 basis-1/3 items-baseline gap-2 px-4 py-2.5 sm:basis-0",
+            i > 0 && "border-l border-[color:var(--border)]"
+          )}
+        >
+          <span className="stamp shrink-0">{k}</span>
+          <span className="tnum truncate font-mono text-[12px] text-foreground">{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ---------------- pipeline rail ---------------- */
 
 function AgentPipeline({ runs }: { runs: RunLike[] }) {
   return (
-    <ol className="space-y-2">
-      {AGENTS.map((agent, i) => {
+    <ol>
+      {PIPELINE.map((key, i) => {
         const run = runs[i] ?? null;
         const status = run?.status ?? "queued";
-        const running = status === "running";
-        const Icon = agent.icon;
+        const tone = RUN_TONE[status] ?? RUN_TONE.queued;
         return (
           <li
-            key={agent.key}
+            key={key}
             className={cn(
-              "flex items-center gap-3 rounded-xl border p-3 transition-colors",
-              running ? "border-lobster/40 bg-lobster/[0.04]" : "border-border bg-card/40",
-              status === "queued" && "opacity-70"
+              "flex min-h-[44px] items-center gap-3 border-b border-[color:var(--border)] px-3 py-2 last:border-b-0",
+              status === "running" && "bg-accent"
             )}
           >
             <span
-              className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-lg border",
-                running ? "border-lobster/40 text-lobster" : "border-border text-muted-foreground"
-              )}
-            >
-              <Icon className="size-4.5" aria-hidden="true" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13.5px] font-medium leading-tight text-foreground">
-                {agent.title}
-              </p>
-              <p className="truncate font-mono text-[11px] text-muted-foreground">
-                {run?.model ? run.model.split("/").pop() : agent.blurb}
-              </p>
+              aria-hidden="true"
+              className={cn("size-1.5 shrink-0 rounded-full", tone.led)}
+            />
+            <span className="stamp w-6 shrink-0 text-tide">T{i + 1}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13.5px] font-medium leading-tight text-foreground">
+                {AGENTS[key].title}
+              </span>
+              <span className="block truncate font-mono text-[11px] text-tide">
+                {run?.model ?? AGENTS[key].model}
+              </span>
               {status === "failed" && run?.error && (
-                <p className="mt-1 line-clamp-2 text-[11.5px] leading-snug text-destructive/90">
+                <span className="mt-1 line-clamp-2 block text-[11.5px] leading-snug text-destructive">
                   {run.error}
-                </p>
+                </span>
               )}
-            </div>
-            <RunIcon status={status} />
+            </span>
+            <span className={cn("stamp shrink-0", tone.word)}>{status}</span>
           </li>
         );
       })}
@@ -150,43 +218,44 @@ function AgentFeed({ events }: { events: EventLike[] }) {
   }, [events.length]);
 
   return (
-    <div>
-      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-        Live feed
-      </p>
-      <div
-        ref={ref}
-        className="mt-3 max-h-[420px] space-y-2 overflow-y-auto rounded-xl border border-border bg-background/40 p-3"
-        aria-live="polite"
-        aria-label="Agent build activity"
-      >
-        {events.length === 0 ? (
-          <p className="p-2 text-[13px] text-muted-foreground">Waiting for the team to start…</p>
-        ) : (
-          events.map((ev, i) => (
-            <div key={i} className="flex gap-3 text-[13px] leading-relaxed">
-              <time className="shrink-0 pt-0.5 font-mono text-[11px] text-muted-foreground/70">
-                {new Date(ev.ts).toLocaleTimeString([], { hour12: false })}
-              </time>
-              <div
-                className={cn(
-                  "min-w-0 flex-1",
-                  ev.kind === "output" && "border-l-2 border-lobster/40 pl-3"
-                )}
-              >
-                <span className="mr-1.5 font-mono text-[10.5px] uppercase tracking-wide text-lobster/80">
-                  {AGENT_TITLE[ev.agentKey] ?? ev.agentKey}
-                </span>
-                <span
-                  className={ev.kind === "output" ? "text-foreground/90" : "text-muted-foreground"}
-                >
-                  {ev.text}
-                </span>
-              </div>
+    <div
+      ref={ref}
+      className="max-h-[380px] overflow-y-auto bg-[color:var(--well)] shadow-[inset_0_1px_2px_oklch(0_0_0/50%)]"
+      aria-live="polite"
+      aria-label="Agent build activity"
+    >
+      {events.length === 0 ? (
+        <p className="stamp px-3 py-8 text-center">No signal · awaiting the team</p>
+      ) : (
+        events.map((ev, i) => (
+          <div
+            key={i}
+            className={cn(
+              "flex gap-2 border-b border-[color:var(--border)] px-3 py-1.5 last:border-b-0",
+              // Only the newest row animates: Convex live queries re-render the
+              // whole list, and a stagger cascade on every refetch reads as jank.
+              i === events.length - 1 && "anim-rise"
+            )}
+          >
+            <time className="tnum w-14 shrink-0 pt-px font-mono text-[11px] text-[color:var(--label)]">
+              {new Date(ev.ts).toLocaleTimeString([], { hour12: false })}
+            </time>
+            <div
+              className={cn(
+                "min-w-0 flex-1 text-[13px] leading-[1.5]",
+                ev.kind === "output" && "border-l-2 border-lobster pl-2.5"
+              )}
+            >
+              <span className="stamp mr-1.5 text-tide">
+                {AGENT_TITLE[ev.agentKey] ?? ev.agentKey}
+              </span>
+              <span className={ev.kind === "output" ? "text-foreground/90" : "text-muted-foreground"}>
+                {ev.text}
+              </span>
             </div>
-          ))
-        )}
-      </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -207,11 +276,11 @@ function OutputTabs({
   const json = assets[active.kind];
 
   return (
-    <div className="rounded-2xl border border-border bg-card/40 p-5 sm:p-6">
+    <section className="plate overflow-hidden">
       <div
         role="tablist"
         aria-label="Company outputs"
-        className="flex flex-wrap gap-1.5 border-b border-border pb-3"
+        className="flex flex-wrap border-b border-[color:var(--rule)] bg-muted"
       >
         {TABS.map((t) => {
           const ready = !!assets[t.kind];
@@ -225,10 +294,10 @@ function OutputTabs({
               aria-controls={`panel-${t.id}`}
               onClick={() => setTab(t.id)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                "inline-flex h-[34px] items-center gap-1.5 border-r border-[color:var(--border)] px-4 text-[13px] font-semibold outline-none transition-colors duration-[120ms]",
                 selected
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  ? "bg-card text-foreground shadow-[inset_0_-2px_0_var(--lobster)]"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               {t.label}
@@ -245,13 +314,15 @@ function OutputTabs({
         role="tabpanel"
         aria-labelledby={`tab-${active.id}`}
         tabIndex={0}
-        className="pt-5 outline-none"
+        className="p-4 outline-none sm:p-5"
       >
         {json === undefined ? (
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-            The {active.label.toLowerCase()} output hasn&apos;t been produced yet. It appears here the
-            moment the {AGENT_TITLE[active.kind] ?? "agent"} finishes.
-          </p>
+          <div className="well flex min-h-40 flex-col items-center justify-center gap-2 px-6 text-center">
+            <p className="stamp">Awaiting {active.label}</p>
+            <p className="max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">
+              It appears here the moment the {AGENT_TITLE[active.kind] ?? "agent"} finishes.
+            </p>
+          </div>
         ) : active.id === "plan" ? (
           <PlanView json={json} />
         ) : active.id === "brand" ? (
@@ -264,7 +335,7 @@ function OutputTabs({
           <MarketingView json={json} />
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -296,57 +367,55 @@ function SignupsPanel({
   if (count === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card/40 p-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-          Waitlist signups
-        </p>
+    <Panel
+      title="Waitlist signups"
+      aside={
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="text-[12.5px] font-medium text-foreground/80 transition-colors hover:text-lobster"
+          aria-expanded={open}
+          className="rounded-[3px] font-mono text-[11px] text-muted-foreground outline-none transition-colors duration-[120ms] hover:text-foreground"
         >
-          {open ? "Hide" : `View (${count > 1000 ? "1,000+" : count})`}
+          {open ? "Hide" : `View ${count > 1000 ? "1,000+" : count}`}
         </button>
-      </div>
+      }
+    >
       {open && (
-        <div className="mt-4">
+        <>
           {rows === undefined ? (
-            <div className="shimmer-line h-16 rounded-lg" />
+            <p className="stamp px-3 py-6 text-center">Reading signups — —</p>
           ) : rows === null || rows.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground">No signups yet.</p>
+            <p className="stamp px-3 py-6 text-center">No signups yet</p>
           ) : (
             <>
-              <ul className="max-h-64 space-y-1.5 overflow-y-auto">
+              <ul className="max-h-64 overflow-y-auto">
                 {rows.map((r, i) => (
                   <li
                     key={i}
-                    className="flex items-baseline justify-between gap-3 text-[13px]"
+                    className="flex items-baseline justify-between gap-3 border-b border-[color:var(--border)] px-3 py-1.5 text-[13px] last:border-b-0"
                   >
                     <span className="truncate text-foreground/90">{r.email}</span>
-                    <time className="shrink-0 font-mono text-[11px] text-muted-foreground/70">
+                    <time className="tnum shrink-0 font-mono text-[11px] text-[color:var(--label)]">
                       {new Date(r.createdAt).toLocaleDateString()}
                     </time>
                   </li>
                 ))}
               </ul>
-              <button
-                type="button"
-                onClick={copyAll}
-                className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <Link2 className="size-3.5" />
-                Copy emails
-              </button>
-              <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground/70">
-                These people asked to hear from you about this idea.
-                {rows.length >= 100 && " Showing the 100 most recent."}
-              </p>
+              <div className="flex items-center justify-between gap-3 border-t border-[color:var(--border)] px-3 py-2.5">
+                <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                  These people asked to hear from you.
+                  {rows.length >= 100 && " Showing the 100 most recent."}
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={copyAll}>
+                  <Link2 className="size-3.5" />
+                  Copy
+                </Button>
+              </div>
             </>
           )}
-        </div>
+        </>
       )}
-    </div>
+    </Panel>
   );
 }
 
@@ -440,35 +509,26 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
 
   if (state === undefined) {
     return (
-      <div className="space-y-4">
-        <div className="shimmer-line h-9 w-64 rounded" />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="shimmer-line h-80 rounded-2xl" />
-          <div className="shimmer-line h-80 rounded-2xl" />
-        </div>
+      <div className="well flex min-h-[60vh] items-center justify-center">
+        <p className="stamp">Opening console — —</p>
       </div>
     );
   }
 
   if (state === null) {
     return (
-      <div className="rounded-2xl border border-border bg-card/40 p-8 text-center">
-        <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">
-          Not found
-        </p>
-        <h1 className="mt-3 font-display text-3xl tracking-tight">
-          We couldn&apos;t open this company.
-        </h1>
-        <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
+      <div className="plate p-8 text-center">
+        <p className="stamp">Not found</p>
+        <h1 className="d3 mt-3">We couldn&apos;t open this company.</h1>
+        <p className="mx-auto mt-3 max-w-sm text-[14px] leading-relaxed text-muted-foreground">
           It may have been removed, or it belongs to another account.
         </p>
-        <Link
-          href="/"
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          <ArrowLeft className="size-4" />
-          Back to Studio
-        </Link>
+        <Button asChild className="mt-6">
+          <Link href="/">
+            <ArrowLeft className="size-4" />
+            Back to Studio
+          </Link>
+        </Button>
       </div>
     );
   }
@@ -479,136 +539,162 @@ export function BuildView({ companyId }: { companyId: Id<"companies"> }) {
   const activeBox = boxes?.find(
     (b) => b.status === "provisioning" || b.status === "running"
   );
+  const typedRuns = runs as RunLike[];
+  const doneSteps = typedRuns.filter((r) => r?.status === "done").length;
+  const assetCount = TABS.filter((t) => !!(assets as Record<string, string | undefined>)[t.kind])
+    .length;
 
   return (
     <div>
+      <TelemetryStrip
+        slug={company.slug}
+        status={company.status}
+        doneSteps={doneSteps}
+        assetCount={assetCount}
+        waitlistCount={waitlistCount}
+        building={company.status === "building"}
+        since={company.updatedAt}
+      />
+
       {/* header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mt-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+            className="stamp inline-flex items-center gap-1.5 rounded-[3px] outline-none transition-colors duration-[120ms] hover:text-foreground"
           >
-            <ArrowLeft className="size-3.5" />
+            <ArrowLeft className="size-3" aria-hidden="true" />
             Studio
           </Link>
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-tight tracking-tight">
-              {company.name}
-            </h1>
+            <h1 className="d3">{company.name}</h1>
             <StatusBadge status={company.status} />
             {(isLive || waitlistCount > 0) && (
               <span
-                className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wide text-muted-foreground"
+                className="tnum stamp"
                 title="Emails collected by this company's public page"
               >
-                <Users className="size-3" aria-hidden="true" />
                 {waitlistCount > 1000 ? "1,000+" : waitlistCount} on the waitlist
               </span>
             )}
           </div>
           {company.tagline && (
-            <p className="mt-1 text-[14.5px] italic text-muted-foreground">{company.tagline}</p>
+            <p className="mt-1.5 max-w-[62ch] text-[14px] leading-relaxed text-muted-foreground">
+              {company.tagline}
+            </p>
           )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {isLive ? (
-            <Link
-              href={`/c/${company.slug}`}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-lobster/40 px-3.5 text-[13px] font-medium text-lobster transition-colors hover:bg-lobster/10"
-            >
-              <ExternalLink className="size-3.5" />
-              Public page
-            </Link>
+            <Button asChild size="sm">
+              <Link href={`/c/${company.slug}`}>
+                <ExternalLink className="size-3.5" />
+                Public page
+              </Link>
+            </Button>
           ) : (
-            <span className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground/60">
+            <Button size="sm" variant="outline" disabled>
               <ExternalLink className="size-3.5" />
               Public page
-            </span>
+            </Button>
           )}
           {/* The slug is provisional until the brand step locks it — copying
               it mid-first-build would hand out a link that 404s forever. */}
-          {isLive ? (
-            <button
-              type="button"
-              onClick={() => onCopyLink(company.slug)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <Link2 className="size-3.5" />
-              Copy link
-            </button>
-          ) : (
-            <span className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground/60">
-              <Link2 className="size-3.5" />
-              Copy link
-            </span>
-          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onCopyLink(company.slug)}
+            disabled={!isLive}
+          >
+            <Link2 className="size-3.5" />
+            Copy link
+          </Button>
           {canRebuild && (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="outline"
               onClick={onRebuild}
               disabled={rebuilding}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
             >
-              <RefreshCw className={cn("size-3.5", rebuilding && "animate-spin")} />
-              Rebuild
-            </button>
+              <RefreshCw className="size-3.5" />
+              {rebuilding ? "Starting…" : "Rebuild"}
+            </Button>
           )}
           {boxesEnabled &&
             isLive &&
             (activeBox ? (
-              <button
+              <Button
                 type="button"
+                size="sm"
+                variant="outline"
                 onClick={() => onKillBox(activeBox.boxId)}
                 disabled={boxBusy}
                 title="Terminate the running dev box"
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive disabled:opacity-50"
+                className="hover:border-destructive/60 hover:text-destructive"
               >
                 <Boxes className="size-3.5" />
                 Kill box
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 type="button"
+                size="sm"
+                variant="outline"
                 onClick={onProvisionBox}
                 disabled={boxBusy}
                 title="Spin up a real cloud dev box. It opens a pull request for you to review — nothing is auto-merged."
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
               >
-                <Boxes className={cn("size-3.5", boxBusy && "animate-pulse")} />
+                <Boxes className="size-3.5" />
                 Dev box
-              </button>
+              </Button>
             ))}
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="outline"
             onClick={onDelete}
             disabled={deleting}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-[13px] text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive disabled:opacity-50"
+            className="hover:border-destructive/60 hover:text-destructive"
           >
             <Trash2 className="size-3.5" />
             Delete
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* body */}
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <div className="space-y-6">
-          <AgentPipeline runs={runs as RunLike[]} />
-          <AgentFeed events={events as EventLike[]} />
+      {/* body — cells in a rule grid, not floating cards */}
+      <div className="mt-7 grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-0">
+        <div className="space-y-4 lg:border-r lg:border-[color:var(--rule)] lg:pr-6">
+          <Panel title="Founding team">
+            <AgentPipeline runs={typedRuns} />
+          </Panel>
+          <Panel
+            title="Live feed"
+            aside={
+              <span className="tnum font-mono text-[11px] text-[color:var(--label)]">
+                {events.length}
+              </span>
+            }
+          >
+            <AgentFeed events={events as EventLike[]} />
+          </Panel>
           <SignupsPanel companyId={companyId} count={waitlistCount} />
         </div>
-        <OutputTabs
-          assets={assets as Record<string, string | undefined>}
-          slug={company.slug}
-          isLive={isLive}
-        />
+        <div className="min-w-0 lg:pl-6">
+          <OutputTabs
+            assets={assets as Record<string, string | undefined>}
+            slug={company.slug}
+            isLive={isLive}
+          />
+        </div>
       </div>
 
       {/* The agency staffs itself from the company's plan and brand, so it only
           appears once the founding-team build has landed. */}
       {isLive && (
-        <div className="mt-6">
+        <div className="mt-10">
           <MissionPanel companyId={companyId} />
         </div>
       )}

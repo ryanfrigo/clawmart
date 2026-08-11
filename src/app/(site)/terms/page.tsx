@@ -81,7 +81,7 @@ export default function TermsPage() {
         For either, reply to your receipt or email{" "}
         <a
           href={`mailto:${SUPPORT_EMAIL}`}
-          className="text-lobster underline underline-offset-4"
+          className="text-foreground underline decoration-[color:var(--rule)] underline-offset-4 transition-colors hover:decoration-lobster"
         >
           {SUPPORT_EMAIL}
         </a>
