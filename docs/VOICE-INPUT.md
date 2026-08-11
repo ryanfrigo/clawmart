@@ -119,3 +119,10 @@ vercel env add OPENROUTER_API_KEY production
 ```
 
 Chrome, Edge and Safari dictation works with or without this — they never call the route.
+
+## Prior art and the OpenWhispr question
+
+Dictation here is inspired by [OpenWhispr](https://github.com/OpenWhispr/openwhispr) (MIT). It is an Electron desktop app and cannot transcribe for a web page —
+`docs/OPENWHISPR.md` records the full assessment of its three integration
+surfaces, the one workflow we do support (dictating straight into our fields),
+and the single upstream change that would make a backend integration worthwhile.
