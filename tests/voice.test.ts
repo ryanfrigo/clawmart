@@ -47,6 +47,19 @@ describe("appendTranscript", () => {
     expect(appendTranscript("", "  too   many\n spaces ")).toBe("too many spaces");
   });
 
+  // docs/OPENWHISPR.md: an external dictation tool (OpenWhispr and friends type
+  // into whatever field has focus) can leave MULTI-LINE text in the box. Our
+  // collapse-whitespace rule applies to the incoming chunk only — it must never
+  // reflow what is already there, or a dictated paragraph gets flattened the
+  // moment the user presses our mic button.
+  it("preserves multi-line text an external dictation tool already inserted", () => {
+    const external = "A tool for bike mechanics.\n\nIt quotes repairs\nand texts the customer.";
+    const merged = appendTranscript(external, "Also track parts used.");
+    expect(merged.startsWith(external)).toBe(true);
+    expect(merged).toContain("\n\n");
+    expect(merged).toBe(external + " Also track parts used.");
+  });
+
   it("clamps to maxLength so the merge can't overflow the field", () => {
     expect(appendTranscript("12345", "6789", 8)).toBe("12345 67");
     // Clamping applies even when the chunk is dropped.
