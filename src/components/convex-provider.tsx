@@ -1,37 +1,26 @@
 "use client";
 
-import { ClerkProvider, useAuth } from "@clerk/nextjs";
-import { dark } from "@clerk/themes";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
+import { ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
 
+/**
+ * Convex + Convex Auth for the whole app.
+ *
+ * Auth is served by the Convex deployment itself (convex/auth.ts), so there is
+ * exactly one thing to configure: NEXT_PUBLIC_CONVEX_URL. Without a real one we
+ * render bare children — no client, no provider, no auth. Legacy pack delivery
+ * (/purchase/[token], /api/download/[token]) is server-rendered and
+ * unauthenticated, so it keeps working in that degraded mode; only signed-in
+ * Studio surfaces go dark, and they check `authEnabled` first
+ * (components/auth/gate.tsx) so they never call a hook that would throw.
+ */
 const url = process.env.NEXT_PUBLIC_CONVEX_URL!;
 const isPlaceholder = !url || url.includes("placeholder");
 
-// Only create client with valid URL
 const convex = isPlaceholder ? null : new ConvexReactClient(url);
 
-const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
-  if (!convex) {
-    // Render without Convex in dev/demo mode
-    return <>{children}</>;
-  }
-  if (!clerkKey) {
-    // No Clerk keys (e.g. a preview env): packs keep working, Studio is
-    // gated behind sign-in it can't render — acceptable degraded mode.
-    return <ConvexProvider client={convex}>{children}</ConvexProvider>;
-  }
-  return (
-    <ClerkProvider
-      publishableKey={clerkKey}
-      appearance={{ baseTheme: dark }}
-    >
-      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        {children}
-      </ConvexProviderWithClerk>
-    </ClerkProvider>
-  );
+  if (!convex) return <>{children}</>;
+  return <ConvexAuthProvider client={convex}>{children}</ConvexAuthProvider>;
 }

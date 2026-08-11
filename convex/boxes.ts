@@ -19,6 +19,8 @@
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
+import type { Auth } from "convex/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { boxDeadlineMs, isBoxFinished, parseBoxPrUrl } from "./lib/boxevents";
@@ -33,12 +35,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_BOXES_PER_USER_PER_DAY = 5;
 const MAX_BOXES_GLOBAL_PER_DAY = 20;
 
-async function requireIdentity(ctx: {
-  auth: { getUserIdentity(): Promise<{ subject: string; email?: string } | null> };
-}) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new ConvexError("unauthenticated");
-  return identity;
+/**
+ * The signed-in owner key, or throw. Same contract as companies.requireUser:
+ * `getAuthUserId`, never `identity.subject` — Convex Auth's `sub` claim is
+ * "<userId>|<sessionId>" and rotates every session (convex/auth.ts).
+ */
+async function requireIdentity(ctx: { auth: Auth }) {
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) throw new ConvexError("unauthenticated");
+  return { subject: userId };
 }
 
 async function rateLimitRow(ctx: MutationCtx, key: string) {
@@ -445,10 +450,10 @@ export const releaseMissionBox = internalMutation({
 export const boxesForCompany = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const ownerId = await getAuthUserId(ctx);
+    if (ownerId === null) return [];
     const company = await ctx.db.get(args.companyId);
-    if (!company || company.ownerId !== identity.subject) return [];
+    if (!company || company.ownerId !== ownerId) return [];
     const rows = await ctx.db
       .query("devBoxes")
       .withIndex("by_company", (q) => q.eq("companyId", args.companyId))

@@ -23,13 +23,13 @@ export default function StudioBuildError({ reset }: { error: Error; reset: () =>
         <button
           type="button"
           onClick={reset}
-          className="inline-flex h-10 items-center rounded-xl bg-primary px-5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="inline-flex h-10 items-center rounded-[3px] bg-primary px-5 text-[14px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           Try again
         </button>
         <Link
           href="/"
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-5 text-[14px] font-medium transition-colors hover:bg-accent"
+          className="inline-flex h-10 items-center gap-2 rounded-[3px] border border-[color:var(--rule)] px-5 text-[14px] font-medium transition-colors hover:bg-accent"
         >
           <ArrowLeft className="size-4" />
           Studio

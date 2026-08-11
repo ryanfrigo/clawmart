@@ -3,15 +3,25 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { toast } from "sonner";
-import { ArrowRight, Dices, Loader2, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Dices } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
-import { clerkEnabled, StudioUnavailable } from "@/components/studio/clerk-enabled";
+import { MAX_COMPANIES_PER_USER } from "../../../convex/lib/roster";
+import {
+  AnonOnly,
+  AuthPending,
+  AuthedOnly,
+  SignInLink,
+  StudioUnavailable,
+  authEnabled,
+} from "@/components/auth/gate";
 import { StatusBadge } from "@/components/studio/status-badge";
+import { DictationControl } from "@/components/voice/dictation-control";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 const IDEA_MIN = 20;
 const IDEA_MAX = 2000;
@@ -20,9 +30,22 @@ const ERRORS: Record<string, string> = {
   unauthenticated: "Please sign in to build a company.",
   idea_too_short: `Add a little more detail — at least ${IDEA_MIN} characters.`,
   idea_too_long: `That's a lot — keep the idea under ${IDEA_MAX} characters.`,
-  company_limit: "You've reached the limit of 3 companies. Rebuild an existing one instead.",
+  company_limit: `You've reached the limit of ${MAX_COMPANIES_PER_USER} companies. Rebuild an existing one instead.`,
   rate_limited: "We've hit today's build limit across the studio. Please try again later.",
 };
+
+/** Inline field error — a strip with a destructive rule, never a toast. */
+function FieldError({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      role="alert"
+      className="mt-2 flex gap-2 border-l-2 border-destructive bg-muted px-3 py-2 text-[12.5px] leading-relaxed text-foreground/90"
+    >
+      <span className="stamp shrink-0 pt-0.5 text-destructive">Err</span>
+      <span>{children}</span>
+    </p>
+  );
+}
 
 function CreateForm({ atLimit }: { atLimit: boolean }) {
   const router = useRouter();
@@ -69,121 +92,163 @@ function CreateForm({ atLimit }: { atLimit: boolean }) {
 
   return (
     <form onSubmit={onSubmit}>
-      <label htmlFor="idea" className="sr-only">
-        Describe your company or SaaS idea
-      </label>
-      <textarea
+      <div className="flex items-baseline justify-between gap-4">
+        <label htmlFor="idea" className="stamp">
+          Your idea
+        </label>
+        <span className="tnum font-mono text-[11px] text-[color:var(--label)]">
+          {len}/{IDEA_MAX}
+        </span>
+      </div>
+      <Textarea
         id="idea"
         value={idea}
         onChange={(e) => setIdea(e.target.value)}
         maxLength={IDEA_MAX}
-        rows={5}
+        rows={4}
         // Locked while a surprise is in flight too — a late-arriving idea
         // must never overwrite text the user typed in the meantime.
         disabled={busy || atLimit || surprising}
+        aria-invalid={tooShort}
         placeholder="A scheduling tool for tattoo artists that handles deposits, reminders, and rebooking over text…"
-        className="w-full resize-y rounded-xl border border-input bg-transparent px-4 py-3 text-[15px] leading-relaxed text-foreground outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-2"
       />
-      <div className="mt-2 flex items-center justify-between">
-        <p className={tooShort ? "text-[12px] text-destructive" : "text-[12px] text-muted-foreground"}>
-          {tooShort ? `${IDEA_MIN - len} more characters to go` : "The sharper the idea, the sharper the build."}
-        </p>
-        <p className="font-mono text-[11px] text-muted-foreground">
-          {len}/{IDEA_MAX}
-        </p>
-      </div>
-      {atLimit && (
-        <p className="mt-3 rounded-lg border border-border bg-card/40 p-3 text-[12.5px] leading-relaxed text-muted-foreground">
-          You have 3 companies — the current limit. Open one below and rebuild it to try a new
-          direction.
+      {/* Voice is strictly additive: dictation appends to whatever is typed,
+          and the textarea above stays fully usable while the mic is open. */}
+      <DictationControl
+        value={idea}
+        onChange={setIdea}
+        maxLength={IDEA_MAX}
+        disabled={busy || atLimit || surprising}
+        fieldLabel="your idea"
+        className="mt-2.5"
+      />
+      {tooShort ? (
+        <FieldError>{IDEA_MIN - len} more characters before the team can start.</FieldError>
+      ) : (
+        <p className="mt-2 text-[12.5px] text-muted-foreground">
+          The sharper the idea, the sharper the build.
         </p>
       )}
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+      {atLimit && (
+        <FieldError>
+          You have {MAX_COMPANIES_PER_USER} companies — the current limit. Open one below
+          and rebuild it to try a new direction.
+        </FieldError>
+      )}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Button type="submit" disabled={!canSubmit}>
+          {busy ? "Assembling the founding team…" : "Build the company"}
+          {!busy && <ArrowRight className="size-4" />}
+        </Button>
         <Button
           type="button"
-          size="lg"
           variant="outline"
           onClick={onSurprise}
           disabled={busy || surprising || atLimit}
-          className="font-medium sm:w-auto"
         >
-          {surprising ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Dices className="size-4" />
-          )}
-          Surprise me
-        </Button>
-        <Button
-          type="submit"
-          size="lg"
-          disabled={!canSubmit}
-          className="flex-1 font-medium"
-        >
-          {busy ? (
-            <>
-              <Loader2 className="size-4 animate-spin" />
-              Assembling the founding team…
-            </>
-          ) : (
-            <>
-              <Sparkles className="size-4" />
-              Build the company
-            </>
-          )}
+          <Dices className="size-4" />
+          {surprising ? "Thinking…" : "Surprise me"}
         </Button>
       </div>
     </form>
   );
 }
 
+/** Auth-gated create form for the hero. The companies list lives in MyCompanies. */
+export function StudioLauncher() {
+  // Gate BEFORE any hooks: in no-Convex environments there is no
+  // ConvexProvider, and useQuery would throw. authEnabled is a build-time
+  // constant, so this early return is stable across renders.
+  if (!authEnabled) return <StudioUnavailable />;
+  return <StudioLauncherInner />;
+}
+
+function StudioLauncherInner() {
+  const companies = useQuery(api.companies.listMine, {});
+  const atLimit = Array.isArray(companies) && companies.length >= MAX_COMPANIES_PER_USER;
+
+  return (
+    <>
+      {/* Server render and session restore both land here. Without it the hero
+          has a hole where its primary action belongs until auth resolves — a
+          blank plate at the right size holds the space and says why. */}
+      <AuthPending>
+        <div className="well flex h-[168px] items-center justify-center">
+          <p className="stamp">Restoring session — —</p>
+        </div>
+      </AuthPending>
+
+      <AnonOnly>
+        <div className="plate p-5">
+          <p className="stamp">Access</p>
+          <p className="mt-2 max-w-md text-[14px] leading-relaxed text-muted-foreground">
+            Sign in to describe an idea and watch a founding team of AI agents draft it.
+            Free while we validate demand.
+          </p>
+          <Button asChild className="mt-4">
+            <SignInLink redirect="/">
+              Sign in to start building
+              <ArrowRight className="size-4" />
+            </SignInLink>
+          </Button>
+        </div>
+      </AnonOnly>
+
+      <AuthedOnly>
+        <div className="plate p-5">
+          <CreateForm atLimit={atLimit} />
+        </div>
+      </AuthedOnly>
+    </>
+  );
+}
+
+/* ---------------- the companies wall ---------------- */
+
 function CompanyGrid() {
   const companies = useQuery(api.companies.listMine, {});
 
+  // A pending readout is a blank plate at the final dimensions, not a skeleton
+  // shimmer. Absence of data is itself telemetry, and it does not animate.
   if (companies === undefined) {
     return (
-      <div className="grid gap-3 sm:grid-cols-2">
-        {[0, 1].map((i) => (
-          <div key={i} className="shimmer-line h-28 rounded-xl" />
-        ))}
+      <div className="well flex h-32 items-center justify-center">
+        <p className="stamp">Reading account — —</p>
       </div>
     );
   }
 
   if (companies.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-border bg-card/30 p-6 text-center text-[13.5px] text-muted-foreground">
-        No companies yet. Describe an idea above and watch the founding team build it.
-      </p>
+      <div className="well flex h-32 items-center justify-center px-6 text-center">
+        <p className="stamp">No companies · awaiting an idea</p>
+      </div>
     );
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="seam-wall sm:grid-cols-2 lg:grid-cols-3">
       {companies.map((c) => (
-        <div
-          key={c._id}
-          className="group relative flex flex-col rounded-xl border border-border bg-card/40 p-5 transition-colors hover:border-lobster/40"
-        >
+        <div key={c._id} className="flex flex-col p-5">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="font-display text-xl leading-tight tracking-tight">{c.name}</h3>
+            <h3 className="text-[15px] font-medium leading-tight tracking-tight">{c.name}</h3>
             <StatusBadge status={c.status} className="shrink-0" />
           </div>
-          <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+          <p className="mt-2 line-clamp-2 flex-1 text-[13.5px] leading-relaxed text-muted-foreground">
             {c.tagline ?? c.idea}
           </p>
-          <div className="mt-4 flex items-center gap-4 pt-1 text-[13px]">
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[color:var(--border)] pt-3">
             <Link
               href={`/studio/${c._id}`}
-              className="inline-flex items-center gap-1 font-medium text-foreground/85 transition-colors hover:text-lobster"
+              className="rounded-[3px] text-[13px] font-medium text-foreground outline-none transition-colors duration-[120ms] hover:text-foreground"
             >
-              Open build
-              <ArrowRight className="size-3.5" />
+              Open build →
             </Link>
             {c.status === "live" && (
               <Link
                 href={`/c/${c.slug}`}
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className="rounded-[3px] text-[13px] text-muted-foreground outline-none transition-colors duration-[120ms] hover:text-foreground"
               >
                 Public page
               </Link>
@@ -191,9 +256,11 @@ function CompanyGrid() {
             {/* A failed-rebuild page keeps serving and collecting — show the
                 signal whenever it exists, not only while "live". */}
             {(c.status === "live" || c.waitlistCount > 0) && (
-              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <Users className="size-3.5" aria-hidden="true" />
-                {c.waitlistCount > 1000 ? "1,000+" : c.waitlistCount} on the waitlist
+              <span
+                className="tnum ml-auto font-mono text-[11px] text-[color:var(--label)]"
+                title="Emails collected by this company's public page"
+              >
+                {c.waitlistCount > 1000 ? "1,000+" : c.waitlistCount} waitlist
               </span>
             )}
           </div>
@@ -203,52 +270,23 @@ function CompanyGrid() {
   );
 }
 
-/** Auth-gated action area for the homepage: sign-in CTA, create form, grid. */
-export function StudioLauncher() {
-  // Gate BEFORE any hooks: in no-Convex/no-Clerk environments there is no
-  // ConvexProvider, and useQuery would throw. clerkEnabled is a build-time
-  // constant, so this early return is stable across renders.
-  if (!clerkEnabled) return <StudioUnavailable />;
-  return <StudioLauncherInner />;
-}
-
-function StudioLauncherInner() {
-  const companies = useQuery(api.companies.listMine, {});
-  const atLimit = Array.isArray(companies) && companies.length >= 3;
-
+/**
+ * The owner's companies. Renders nothing at all when signed out, so the
+ * homepage can place it as a real section without a hole in the page.
+ */
+export function MyCompanies({ className }: { className?: string }) {
+  if (!authEnabled) return null;
   return (
-    <>
-      <SignedOut>
-        <div className="rounded-2xl border border-lobster/30 bg-card/50 p-8 text-center">
-          <p className="text-[15px] leading-relaxed text-muted-foreground">
-            Sign in to describe an idea and watch a founding team of AI agents draft it — free while
-            we validate demand.
-          </p>
-          <SignInButton mode="modal">
-            <Button size="lg" className="mt-5 font-medium">
-              Sign in to start building
-              <ArrowRight className="size-4" />
-            </Button>
-          </SignInButton>
+    <AuthedOnly>
+      <section id="companies" className={cn("scroll-mt-16", className)}>
+        <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[color:var(--rule)] pb-3">
+          <h2 className="stamp-lg text-foreground">Your companies</h2>
+          <p className="stamp">Up to {MAX_COMPANIES_PER_USER} per account</p>
         </div>
-      </SignedOut>
-
-      <SignedIn>
-        <div className="rounded-2xl border border-border bg-card/50 p-6 sm:p-8">
-          <CreateForm atLimit={atLimit} />
+        <div className="mt-5">
+          <CompanyGrid />
         </div>
-        <div id="companies" className="mt-14 scroll-mt-20">
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-3xl tracking-tight">Your companies</h2>
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-              Up to 3
-            </p>
-          </div>
-          <div className="mt-6">
-            <CompanyGrid />
-          </div>
-        </div>
-      </SignedIn>
-    </>
+      </section>
+    </AuthedOnly>
   );
 }

@@ -16,12 +16,15 @@
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
+import type { Auth } from "convex/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { boxDeadlineMs, boxTaskEnvelope } from "./lib/boxevents";
 import {
   getAgent,
   MAX_COMPANY_MEMORY,
+  MAX_CONCURRENT_TASKS,
   MAX_MEMORY_LEARNINGS,
   MAX_TASKS,
   MEMORY_TEXT_MAX,
@@ -36,20 +39,25 @@ const MAX_ACTIVE_MISSIONS_PER_COMPANY = 2;
 const MAX_MISSIONS_PER_USER_PER_DAY = 8;
 const MAX_MISSIONS_GLOBAL_PER_DAY = 60;
 
-/** How many tasks of one mission may be in flight at once. */
-export const MAX_CONCURRENT_TASKS = 3;
+/** How many tasks of one mission may be in flight at once. Defined in
+ *  lib/roster.ts (pure, so the UI can render it too); re-exported here because
+ *  the engine and its tests reason about it under this name. */
+export { MAX_CONCURRENT_TASKS };
 
 /** A mission with no progress for this long is closed by the watchdog. */
 const MISSION_STALE_MS = 15 * 60 * 1000;
 
 const EVENT_KEY = "agency";
 
-async function requireIdentity(ctx: {
-  auth: { getUserIdentity(): Promise<{ subject: string; email?: string } | null> };
-}) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new ConvexError("unauthenticated");
-  return identity;
+/**
+ * The signed-in owner key, or throw. Same contract as companies.requireUser:
+ * `getAuthUserId`, never `identity.subject` — Convex Auth's `sub` claim is
+ * "<userId>|<sessionId>" and rotates every session (convex/auth.ts).
+ */
+async function requireIdentity(ctx: { auth: Auth }) {
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) throw new ConvexError("unauthenticated");
+  return { subject: userId };
 }
 
 /** Same sliding-window limiter as companies.bumpRateLimit (kept local — surgical). */
@@ -255,10 +263,10 @@ export const forgetMemory = mutation({
 export const listForCompany = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const ownerId = await getAuthUserId(ctx);
+    if (ownerId === null) return [];
     const company = await ctx.db.get(args.companyId);
-    if (!company || company.ownerId !== identity.subject) return [];
+    if (!company || company.ownerId !== ownerId) return [];
 
     const missions = await ctx.db
       .query("missions")
@@ -285,10 +293,10 @@ export const listForCompany = query({
 export const listMemory = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const ownerId = await getAuthUserId(ctx);
+    if (ownerId === null) return [];
     const company = await ctx.db.get(args.companyId);
-    if (!company || company.ownerId !== identity.subject) return [];
+    if (!company || company.ownerId !== ownerId) return [];
 
     const rows = await ctx.db
       .query("companyMemory")
@@ -309,10 +317,10 @@ export const listMemory = query({
 export const missionBoard = query({
   args: { missionId: v.id("missions") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    const ownerId = await getAuthUserId(ctx);
+    if (ownerId === null) return null;
     const mission = await ctx.db.get(args.missionId);
-    if (!mission || mission.ownerId !== identity.subject) return null;
+    if (!mission || mission.ownerId !== ownerId) return null;
 
     const tasks = await ctx.db
       .query("missionTasks")

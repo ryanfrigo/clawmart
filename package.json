@@ -12,10 +12,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@auth/core": "^0.41.3",
     "@aws-sdk/client-ec2": "^3.1090.0",
     "@aws-sdk/client-ssm": "^3.1090.0",
-    "@clerk/nextjs": "^6.37.4",
-    "@clerk/themes": "^2.4.52",
+    "@convex-dev/auth": "^0.0.94",
     "@stripe/stripe-js": "^8.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

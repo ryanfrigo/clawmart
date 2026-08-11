@@ -606,6 +606,18 @@ ${TASK_CONTRACT}`,
 export const MAX_TASKS = 8;
 export const MIN_TASKS = 2;
 
+/**
+ * How many tasks of one mission may be in flight at once (the authority for
+ * `claimReadyTasks`), and how many companies one account may hold.
+ *
+ * Both live here rather than beside their consumers because this module is
+ * pure — no Convex imports — so marketing surfaces can render "3 parallel" and
+ * "up to 3 companies" from the real number instead of typing it. A typed
+ * constant on a page is a fact that silently goes stale.
+ */
+export const MAX_CONCURRENT_TASKS = 3;
+export const MAX_COMPANIES_PER_USER = 3;
+
 /** Compact roster listing handed to the planner so it staffs from real keys. */
 export function rosterManifest(): string {
   return DIVISIONS.map((d) => {
