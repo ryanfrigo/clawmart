@@ -61,6 +61,25 @@ const nextConfig: NextConfig = {
         source: "/purchase/:path*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
       },
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Clickjacking. This mattered less when Clerk hosted the login on its
+          // own origin; we now serve a password form at /signin, and an
+          // invisible cross-origin frame over it is the classic way to harvest
+          // one. X-Frame-Options for old browsers, frame-ancestors for current.
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          // microphone stays `self` ON PURPOSE — Firefox dictation records via
+          // MediaRecorder, and `microphone=()` would silently kill it.
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), geolocation=(), microphone=(self)",
+          },
+        ],
+      },
     ];
   },
 };

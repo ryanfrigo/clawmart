@@ -166,14 +166,40 @@ export default async function OpengraphImage({
             position: "absolute",
             bottom: 48,
             left: 80,
+            right: 80,
             display: "flex",
-            fontSize: 21,
-            color: accent,
-            letterSpacing: 3,
-            textTransform: "uppercase",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          clawmart.co/c/{slug}
+          <div
+            style={{
+              display: "flex",
+              fontSize: 21,
+              color: accent,
+              letterSpacing: 3,
+              textTransform: "uppercase",
+            }}
+          >
+            clawmart.co/c/{slug}
+          </div>
+          {/* The page says "AI draft" in its footer, but the page is not what
+              travels — this card is. Shared into X or Slack it shows a name and
+              a tagline that read exactly like a real company, so the label has
+              to be ON the image. `ink` is contrast-picked against the model's
+              own background, so it stays legible whatever brand it returned. */}
+          <div
+            style={{
+              display: "flex",
+              fontSize: 19,
+              color: ink,
+              opacity: 0.75,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+            }}
+          >
+            AI draft · not a real company
+          </div>
         </div>
       </div>
     ),

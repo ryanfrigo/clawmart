@@ -8,6 +8,7 @@
  * - api.companies.get           owner-only company doc
  * - api.companies.buildState    owner-only runs + events + assets (live feed)
  * - api.companies.getPublicBySlug  UNAUTHENTICATED — powers /c/[slug]
+ * - api.companies.listPublic       UNAUTHENTICATED — slugs for the sitemap
  *
  * The engine's state transitions (markRunning / completeStep / failStep) are
  * internal and only reachable from convex/agents.ts.
@@ -383,6 +384,33 @@ export const getPublicBySlug = query({
       // non-secret — it appears in owner URLs and grants no access).
       companyId: company._id,
     };
+  },
+});
+
+// Sitemap ceiling. Well under the 50k sitemap limit and under Convex's read
+// cap; if we ever pass it the sitemap drops the oldest pages, which is why
+// this is a named constant rather than an inline number.
+const SITEMAP_MAX = 2000;
+
+/**
+ * UNAUTHENTICATED — every public company page, for the sitemap.
+ *
+ * Slug and updatedAt only: this is a discovery index, not a content feed, and
+ * anything richer would be a free scrape of every user's work.
+ *
+ * Only "live" companies are listed. A page whose build failed still SERVES
+ * (getPublicBySlug keeps the last good landing up), but publishing it for
+ * indexing is a stronger claim than keeping a shared link alive.
+ */
+export const listPublic = query({
+  args: {},
+  handler: async (ctx) => {
+    const companies = await ctx.db
+      .query("companies")
+      .withIndex("by_status", (q) => q.eq("status", "live"))
+      .order("desc")
+      .take(SITEMAP_MAX);
+    return companies.map((c) => ({ slug: c.slug, updatedAt: c.updatedAt }));
   },
 });
 
