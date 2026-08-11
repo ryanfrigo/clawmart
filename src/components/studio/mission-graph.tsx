@@ -12,6 +12,7 @@ import {
   layout,
   type GraphTask,
 } from "@/lib/graph-geometry";
+import { missionNarration } from "@/components/studio/mission-narration";
 import { cn } from "@/lib/utils";
 
 /**
@@ -116,6 +117,17 @@ export function MissionGraph({
   const transposed = useTransposed();
   const g = layout(tasks, { transpose: transposed });
   const statusOf = new Map(tasks.map((t) => [t.index, t.status]));
+  // Depth comes from the layout, so the spoken wave number and the drawn
+  // column can never disagree.
+  const narration = missionNarration(
+    g.nodes.map((n) => ({
+      status: n.task.status,
+      agentName: n.task.agentName,
+      depth: n.depth,
+    })),
+    missionStatus,
+    g.waves.length
+  );
 
   /* ---- planning: an empty stage with one line sweeping wave 1 ---- */
   if (tasks.length === 0) {
@@ -133,6 +145,11 @@ export function MissionGraph({
         )}
         <p className="stamp relative text-center">
           {planning ? "Orchestrator · drafting plan" : "No plan · this mission was never staffed"}
+        </p>
+        {/* Present before the plan lands, so the first wave is announced into
+            a region that already exists rather than one that just appeared. */}
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {missionNarration([], missionStatus, 0)}
         </p>
       </div>
     );
@@ -319,6 +336,14 @@ export function MissionGraph({
           </li>
         ))}
       </ol>
+
+      {/* The graph animating IS the feature, and it was mute. The list above is
+          a static snapshot you have to go read; this speaks when something
+          actually changes. Kept to one derived sentence on purpose — see
+          mission-narration.ts for why that is what stops it becoming spam. */}
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {narration}
+      </p>
     </div>
   );
 }
