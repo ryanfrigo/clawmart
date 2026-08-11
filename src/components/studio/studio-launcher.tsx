@@ -19,6 +19,8 @@ import {
 } from "@/components/auth/gate";
 import { StatusBadge } from "@/components/studio/status-badge";
 import { DictationControl } from "@/components/voice/dictation-control";
+import { appendTranscript } from "@/components/voice/transcript";
+import { ImportFromOpenWhispr } from "@/components/openwhispr/import-note";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -115,14 +117,21 @@ function CreateForm({ atLimit }: { atLimit: boolean }) {
       />
       {/* Voice is strictly additive: dictation appends to whatever is typed,
           and the textarea above stays fully usable while the mic is open. */}
-      <DictationControl
-        value={idea}
-        onChange={setIdea}
-        maxLength={IDEA_MAX}
-        disabled={busy || atLimit || surprising}
-        fieldLabel="your idea"
-        className="mt-2.5"
-      />
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <DictationControl
+          value={idea}
+          onChange={setIdea}
+          maxLength={IDEA_MAX}
+          disabled={busy || atLimit || surprising}
+          fieldLabel="your idea"
+        />
+        {/* Already dictated this into OpenWhispr? Don't retype it. Appends the
+            same way dictation does, so it can never wipe what is typed. */}
+        <ImportFromOpenWhispr
+          disabled={busy || atLimit || surprising}
+          onImport={(text) => setIdea((current) => appendTranscript(current, text, IDEA_MAX))}
+        />
+      </div>
       {tooShort ? (
         <FieldError>{IDEA_MIN - len} more characters before the team can start.</FieldError>
       ) : (

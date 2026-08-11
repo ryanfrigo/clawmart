@@ -5,10 +5,10 @@ voice-to-text desktop app: hold a global hotkey, speak, and the text is typed
 into whatever field has focus. Local models (whisper.cpp, Parakeet via
 sherpa-onnx) or a cloud provider, user's choice.
 
-This records what was investigated, what does not work and why, and the one path
-that does — so the question is not re-litigated from the README alone.
+This records what was investigated, what does not work and why, and the two
+paths that do — so the question is not re-litigated from the README alone.
 
-## Why it cannot transcribe for Clawmart
+## Why it cannot *transcribe* for Clawmart
 
 Clawmart is a Next.js app served from Vercel. OpenWhispr is an **Electron
 desktop application** (Electron 41, better-sqlite3). It cannot be bundled into a
@@ -32,7 +32,29 @@ So we took the idea, not the dependency: `docs/VOICE-INPUT.md` describes the
 dictation we built (Web Speech API, with a Whisper fallback), credited to
 OpenWhispr as the inspiration.
 
-## What we do support: dictate straight into Clawmart
+## What we built: import a dictated note
+
+The cloud API has no audio endpoint, but it does serve **the notes a user has
+already dictated** — and that is exactly our input. Someone who talks their
+thinking into OpenWhispr all day should not have to retype it here.
+
+`Import from OpenWhispr` sits under the idea box. Paste an API key once
+(desktop app → Integrations → API), pick a note, and it appends into the field.
+
+| Decision | Why |
+|---|---|
+| **The key never touches our server.** | It lives in `localStorage` and goes straight from the browser to `api.openwhispr.com`. Holding other people's third-party credentials would mean encrypted per-user secret storage, a rotation story and a breach surface — all to save one paste. |
+| **Import appends, never overwrites.** | It reuses `appendTranscript`, the same invariant as dictation, so an import cannot wipe what you typed. |
+| **Row fields are read by alias.** | The docs fix the envelope (`data` / `has_more` / `next_cursor`) but not the row shape, so `id`/`note_id`/`uuid` and `text`/`content`/`body`/`transcript` are all accepted rather than betting on one and breaking on the first real account. |
+| **A blocked request says so.** | Their CORS policy is undocumented. If the browser blocks the call, the message says that plainly instead of "network error" — otherwise the user goes and regenerates a key that was never the problem. |
+
+**Not verified against a live account.** We hold no OpenWhispr key. Every rule is
+written from the published contract and unit-tested against it
+(`tests/openwhispr.test.ts`); the first real key is the first end-to-end proof.
+The most likely surprise is CORS, which is why that path degrades to a sentence
+a user can act on rather than a dead button.
+
+## Also supported: dictate straight into Clawmart
 
 OpenWhispr's actual product is typing into *any* focused field. That includes
 ours, and it is the integration that costs a user nothing:
